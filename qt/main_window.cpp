@@ -60,6 +60,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent),
     initBufTable();
 
     prog = new Programmer(this);
+    updateProgSettings();
 
     updateChipList();
 
@@ -221,10 +222,6 @@ void MainWindow::slotProgConnect()
 {
     if (!prog->isConnected())
     {
-        QSettings settings(SETTINGS_ORGANIZATION_NAME, SETTINGS_APPLICATION_NAME);
-        if(settings.contains(SETTINGS_USB_DEV_NAME))
-            prog->setUsbDevName(settings.value(SETTINGS_USB_DEV_NAME).toString());
-
         if (!prog->connect())
         {
             connect(prog, SIGNAL(connectCompleted(int)), this,
@@ -251,11 +248,11 @@ void MainWindow::slotProgReadDeviceIdCompleted(int status)
         return;
 
     idStr = tr("0x%1 0x%2 0x%3 0x%4 0x%5")
-            .arg(chipId.makerId,2,16)
-            .arg(chipId.deviceId,2,16)
-            .arg(chipId.thirdId,2,16)
-            .arg(chipId.fourthId,2,16)
-            .arg(chipId.fifthId,2,16);
+        .arg(chipId.makerId, 2, 16)
+        .arg(chipId.deviceId, 2, 16)
+        .arg(chipId.thirdId, 2, 16)
+        .arg(chipId.fourthId, 2, 16)
+        .arg(chipId.fifthId, 2, 16);
     ui->deviceValueLabel->setText(idStr);
 
     qInfo() << QString("ID ").append(idStr).toLatin1().data();
@@ -511,11 +508,11 @@ void MainWindow::slotProgDetectChipReadChipIdCompleted(int status)
         return;
 
     idStr = tr("0x%1 0x%2 0x%3 0x%4 0x%5")
-            .arg(chipId.makerId,2,16)
-            .arg(chipId.deviceId,2,16)
-            .arg(chipId.thirdId,2,16)
-            .arg(chipId.fourthId,2,16)
-            .arg(chipId.fifthId,2,16);
+        .arg(chipId.makerId, 2, 16)
+        .arg(chipId.deviceId, 2, 16)
+        .arg(chipId.thirdId, 2, 16)
+        .arg(chipId.fourthId, 2, 16)
+        .arg(chipId.fifthId, 2, 16);
 
     ui->deviceValueLabel->setText(idStr);
 
@@ -577,14 +574,27 @@ void MainWindow::slotSettingsProgrammer()
 
     if (progDialog.exec() == QDialog::Accepted)
     {
-        prog->setUsbDevName(progDialog.getUsbDevName());
-        prog->setSkipBB(progDialog.isSkipBB());
-        prog->setIncSpare(progDialog.isIncSpare());
-
         settings.setValue(SETTINGS_USB_DEV_NAME, progDialog.getUsbDevName());
         settings.setValue(SETTINGS_SKIP_BAD_BLOCKS, progDialog.isSkipBB());
         settings.setValue(SETTINGS_INCLUDE_SPARE_AREA, progDialog.isIncSpare());
         settings.sync();
+
+        updateProgSettings();
+    }
+}
+
+void MainWindow::updateProgSettings()
+{
+    QSettings settings(SETTINGS_ORGANIZATION_NAME, SETTINGS_APPLICATION_NAME);
+
+    if (settings.contains(SETTINGS_USB_DEV_NAME))
+        prog->setUsbDevName(settings.value(SETTINGS_USB_DEV_NAME).toString());
+    if (settings.contains(SETTINGS_SKIP_BAD_BLOCKS))
+        prog->setSkipBB(settings.value(SETTINGS_SKIP_BAD_BLOCKS).toBool());
+    if (settings.contains(SETTINGS_INCLUDE_SPARE_AREA))
+    {
+        prog->setIncSpare(settings.value(SETTINGS_INCLUDE_SPARE_AREA).
+            toBool());
     }
 }
 
