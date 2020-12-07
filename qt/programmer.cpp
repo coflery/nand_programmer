@@ -1,10 +1,9 @@
-/*  Copyright (C) 2017 Bogdan Bogush <bogdan.s.bogush@gmail.com>
+/*  Copyright (C) 2020 NANDO authors
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 3.
  */
 
 #include "programmer.h"
-#include "stm32.h"
 #include <QDebug>
 
 #ifdef Q_OS_LINUX
@@ -299,53 +298,21 @@ void Programmer::confChipCb(int ret)
 void Programmer::confChip(ChipInfo *chipInfo)
 {
     ConfCmd confCmd;
-    StmParams params;
-
-    chipInfoToStmParams(chipInfo, &params);
 
     confCmd.cmd.code = CMD_NAND_CONF;
-    confCmd.pageSize = chipInfo->params[CHIP_PARAM_PAGE_SIZE];
-    confCmd.blockSize = chipInfo->params[CHIP_PARAM_BLOCK_SIZE];
-    confCmd.totalSize = chipInfo->params[CHIP_PARAM_TOTAL_SIZE];
-    confCmd.spareSize = chipInfo->params[CHIP_PARAM_SPARE_SIZE];
-    confCmd.setupTime = params.setupTime;
-    confCmd.waitSetupTime = params.waitSetupTime;
-    confCmd.holdSetupTime = params.holdSetupTime;
-    confCmd.hiZSetupTime = params.hiZSetupTime;
-    confCmd.clrSetupTime = params.clrSetupTime;
-    confCmd.arSetupTime = params.arSetupTime;
-    confCmd.rowCycles = static_cast<uint8_t>
-        (chipInfo->params[CHIP_PARAM_ROW_CYCLES]);
-    confCmd.colCycles = static_cast<uint8_t>
-        (chipInfo->params[CHIP_PARAM_COL_CYCLES]);
-    confCmd.read1Cmd = static_cast<uint8_t>
-        (chipInfo->params[CHIP_PARAM_READ1_CMD]);
-    confCmd.read2Cmd = static_cast<uint8_t>
-        (chipInfo->params[CHIP_PARAM_READ2_CMD]);
-    confCmd.readSpareCmd = static_cast<uint8_t>
-        (chipInfo->params[CHIP_PARAM_READ_SPARE_CMD]);
-    confCmd.readIdCmd = static_cast<uint8_t>
-        (chipInfo->params[CHIP_PARAM_READ_ID_CMD]);
-    confCmd.resetCmd = static_cast<uint8_t>
-        (chipInfo->params[CHIP_PARAM_RESET_CMD]);
-    confCmd.write1Cmd = static_cast<uint8_t>
-        (chipInfo->params[CHIP_PARAM_WRITE1_CMD]);
-    confCmd.write2Cmd = static_cast<uint8_t>
-        (chipInfo->params[CHIP_PARAM_WRITE2_CMD]);
-    confCmd.erase1Cmd = static_cast<uint8_t>
-        (chipInfo->params[CHIP_PARAM_ERASE1_CMD]);
-    confCmd.erase2Cmd = static_cast<uint8_t>
-        (chipInfo->params[CHIP_PARAM_ERASE2_CMD]);
-    confCmd.statusCmd = static_cast<uint8_t>
-        (chipInfo->params[CHIP_PARAM_STATUS_CMD]);
-    confCmd.bbMarkOff = static_cast<uint8_t>
-        (chipInfo->params[CHIP_PARAM_BB_MARK_OFF]);
+    confCmd.hal = chipInfo->getHal();
+    confCmd.pageSize = chipInfo->getPageSize();
+    confCmd.blockSize = chipInfo->getBlockSize();
+    confCmd.totalSize = chipInfo->getTotalSize();
+    confCmd.spareSize = chipInfo->getSpareSize();
+    confCmd.bbMarkOff = chipInfo->getBBMarkOffset();
 
     QObject::connect(&reader, SIGNAL(result(int)), this,
         SLOT(confChipCb(int)));
 
     writeData.clear();
     writeData.append(reinterpret_cast<const char *>(&confCmd), sizeof(confCmd));
+    writeData.append(chipInfo->getHalConf());
     reader.init(usbDevName, SERIAL_PORT_SPEED, nullptr, 0,
         reinterpret_cast<const uint8_t *>(writeData.constData()),
         static_cast<uint32_t>(writeData.size()), false, false);

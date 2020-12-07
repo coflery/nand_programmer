@@ -1,4 +1,4 @@
-/*  Copyright (C) 2017 Bogdan Bogush <bogdan.s.bogush@gmail.com>
+/*  Copyright (C) 2020 NANDO authors
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 3.
  */
@@ -8,6 +8,8 @@
 
 #include "programmer.h"
 #include "buffer_table_model.h"
+#include "parallel_chip_db.h"
+#include "spi_chip_db.h"
 #include <QMainWindow>
 #include <QVector>
 
@@ -29,7 +31,9 @@ private:
     QVector<uint8_t> buffer;
     BufferTableModel bufferTableModel;
     ChipId chipId;
-    ChipDb chipDb;
+    ParallelChipDb parallelChipDb;
+    SpiChipDb spiChipDb;
+    ChipDb *currentChipDb;
 
     void initBufTable();
     void resetBufTable();
@@ -38,6 +42,7 @@ private:
     void updateChipList();
     void setProgress(unsigned int progress);
     void updateProgSettings();
+    void detectChip(ChipDb *chipDb);
 
 private slots:
     void slotProgConnectCompleted(int status);
@@ -67,7 +72,8 @@ public slots:
     void slotSelectChip(int selectedChipNum);
     void slotDetectChip();
     void slotSettingsProgrammer();
-    void slotSettingsChipDb();
+    void slotSettingsParallelChipDb();
+    void slotSettingsSpiChipDb();
     void slotAboutDialog();
     void slotFirmwareUpdateDialog();
 };

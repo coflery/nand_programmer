@@ -1,30 +1,30 @@
-/*  Copyright (C) 2017 Bogdan Bogush <bogdan.s.bogush@gmail.com>
+/*  Copyright (C) 2020 NANDO authors
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 3.
  */
 
-#ifndef CHIP_DB_DALOG_H
-#define CHIP_DB_DALOG_H
+#ifndef SPI_CHIP_DB_DALOG_H
+#define SPI_CHIP_DB_DALOG_H
 
-#include "chip_db_table_model.h"
+#include "spi_chip_db_table_model.h"
 #include <QDialog>
 #include <QSortFilterProxyModel>
 
 namespace Ui {
-class ChipDbDialog;
+class SpiChipDbDialog;
 }
 
-class ChipDbDialog : public QDialog
+class SpiChipDbDialog : public QDialog
 {
     Q_OBJECT
 
-    Ui::ChipDbDialog *ui;
-    ChipDbTableModel chipDbTableModel;
+    Ui::SpiChipDbDialog *ui;
+    SpiChipDbTableModel chipDbTableModel;
     QSortFilterProxyModel chipDbProxyModel;
 
 public:
-    explicit ChipDbDialog(ChipDb *chipDb, QWidget *parent = nullptr);
-    ~ChipDbDialog();    
+    explicit SpiChipDbDialog(SpiChipDb *chipDb, QWidget *parent = nullptr);
+    ~SpiChipDbDialog();
 
 private slots:
     void slotAddChipDbButtonClicked();
@@ -33,4 +33,4 @@ private slots:
     void slotCancelButtonClicked();
 };
 
-#endif // CHIP_DB_DALOG_H
+#endif // SPI_CHIP_DB_DALOG_H

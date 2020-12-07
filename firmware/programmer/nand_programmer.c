@@ -1,4 +1,4 @@
-/*  Copyright (C) 2017 Bogdan Bogush <bogdan.s.bogush@gmail.com>
+/*  Copyright (C) 2020 NANDO authors
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 3.
  */
@@ -11,6 +11,7 @@
 #include "log.h"
 #include "version.h"
 #include "flash.h"
+#include "spi_flash.h"
 #include <stdio.h>
 #include <string.h>
 #include <stddef.h>
@@ -116,29 +117,13 @@ typedef struct __attribute__((__packed__))
 typedef struct __attribute__((__packed__))
 {
     np_cmd_t cmd;
+    uint8_t hal;
     uint32_t page_size;
     uint32_t block_size;
     uint32_t total_size;
     uint32_t spare_size;    
-    uint8_t setup_time;
-    uint8_t wait_setup_time;
-    uint8_t hold_setup_time;
-    uint8_t hi_z_setup_time;
-    uint8_t clr_setup_time;
-    uint8_t ar_setup_time;
-    uint8_t row_cycles;
-    uint8_t col_cycles;
-    uint8_t read1_cmd;
-    uint8_t read2_cmd;
-    uint8_t read_spare_cmd;
-    uint8_t read_id_cmd;
-    uint8_t reset_cmd;
-    uint8_t write1_cmd;
-    uint8_t write2_cmd;
-    uint8_t erase1_cmd;
-    uint8_t erase2_cmd;
-    uint8_t status_cmd;
     uint8_t bb_mark_off;
+    uint8_t hal_conf[];
 } np_conf_cmd_t;
 
 enum
@@ -167,7 +152,7 @@ enum
 typedef struct __attribute__((__packed__))
 {
     np_resp_t header;
-    nand_id_t nand_id;
+    chip_id_t nand_id;
 } np_resp_id_t;
 
 typedef struct __attribute__((__packed__))
@@ -253,6 +238,7 @@ typedef struct
     uint32_t nand_timeout;
     chip_info_t chip_info;
     uint8_t active_image;
+    uint8_t hal;
 } np_prog_t;
 
 typedef struct
@@ -264,6 +250,8 @@ typedef struct
 
 static np_comm_cb_t *np_comm_cb;
 static np_prog_t prog;
+
+static flash_hal_t *hal[] = { &hal_fsmc, &hal_spi };
 
 uint8_t np_packet_send_buf[NP_PACKET_BUF_SIZE];
 
@@ -322,7 +310,7 @@ static int _np_cmd_nand_read_id(np_prog_t *prog)
 
     resp.header.code = NP_RESP_DATA;
     resp.header.info = resp_len - sizeof(resp.header);
-    nand_read_id(&resp.nand_id);
+    hal[prog->hal]->read_id(&resp.nand_id);
 
     if (np_comm_cb)
         np_comm_cb->send((uint8_t *)&resp, resp_len);
@@ -349,23 +337,25 @@ static int np_read_bad_block_info_from_page(np_prog_t *prog, uint32_t block,
     uint32_t page, bool *is_bad)
 {
     uint32_t status, addr = block * prog->chip_info.block_size;
+    uint8_t *bb_mark = &prog->page.buf[prog->chip_info.page_size +
+        prog->chip_info.bb_mark_off];
 
-    status = nand_read_spare_data(&prog->page.buf[prog->chip_info.page_size +
-            prog->chip_info.bb_mark_off], page, prog->chip_info.bb_mark_off, 1);
-    if (status == NAND_INVALID_CMD)
+    status = hal[prog->hal]->read_spare_data(bb_mark, page,
+        prog->chip_info.bb_mark_off, 1);
+    if (status == FLASH_STATUS_INVALID_CMD)
     {
-        status = nand_read_page(prog->page.buf, page,
+        status = hal[prog->hal]->read_page(prog->page.buf, page,
             prog->chip_info.page_size + prog->chip_info.spare_size);
     }
 
     switch (status)
     {
-    case NAND_READY:
+    case FLASH_STATUS_READY:
         break;
-    case NAND_ERROR:
+    case FLASH_STATUS_ERROR:
         ERROR_PRINT("NAND read bad block info error at 0x%lx\r\n", addr);
         return NP_ERR_NAND_RD;
-    case NAND_TIMEOUT_ERROR:
+    case FLASH_STATUS_TIMEOUT:
         ERROR_PRINT("NAND read timeout at 0x%lx\r\n", addr);
         return NP_ERR_NAND_RD;
     default:
@@ -384,6 +374,9 @@ static int _np_cmd_read_bad_blocks(np_prog_t *prog)
     int ret;
     bool is_bad;
     uint32_t block, block_num, page_num, page;
+
+    if (!hal[prog->hal]->is_bb_supported())
+        goto Exit;
 
     block_num = prog->chip_info.total_size / prog->chip_info.block_size;
     page_num = prog->chip_info.block_size / prog->chip_info.page_size;
@@ -410,6 +403,7 @@ static int _np_cmd_read_bad_blocks(np_prog_t *prog)
             return NP_ERR_BBT_OVERFLOW;
     }
 
+Exit:
     prog->bb_is_read = 1;
 
     return 0;
@@ -422,16 +416,16 @@ static int np_nand_erase(np_prog_t *prog, uint32_t page)
     
     DEBUG_PRINT("NAND erase at 0x%lx\r\n", addr);
 
-    status = nand_erase_block(page);
+    status = hal[prog->hal]->erase_block(page);
     switch (status)
     {
-    case NAND_READY:
+    case FLASH_STATUS_READY:
         break;
-    case NAND_ERROR:
+    case FLASH_STATUS_ERROR:
         if (np_send_bad_block_info(addr, prog->chip_info.block_size, false))
             return -1;
         break;
-    case NAND_TIMEOUT_ERROR:
+    case FLASH_STATUS_TIMEOUT:
         ERROR_PRINT("NAND erase timeout at 0x%lx\r\n", addr);
         break;
     default:
@@ -650,17 +644,17 @@ static int np_cmd_nand_write_start(np_prog_t *prog)
 
 static int np_nand_handle_status(np_prog_t *prog)
 {
-    switch (nand_read_status())
+    switch (hal[prog->hal]->read_status())
     {
-    case NAND_ERROR:
+    case FLASH_STATUS_ERROR:
         if (np_send_bad_block_info(prog->addr, prog->block_size, false))
             return -1;
         /* fall through */
-    case NAND_READY:
+    case FLASH_STATUS_READY:
         prog->nand_wr_in_progress = 0;
         prog->nand_timeout = 0;
         break;
-    case NAND_BUSY:
+    case FLASH_STATUS_BUSY:
         if (++prog->nand_timeout == NP_NAND_TIMEOUT)
         {
             ERROR_PRINT("NAND write timeout at 0x%lx\r\n", prog->addr);
@@ -695,7 +689,8 @@ static int np_nand_write(np_prog_t *prog)
     DEBUG_PRINT("NAND write at 0x%lx %lu bytes\r\n", prog->addr,
         prog->page_size);
 
-    nand_write_page_async(prog->page.buf, prog->page.page, prog->page_size);
+    hal[prog->hal]->write_page_async(prog->page.buf, prog->page.page,
+        prog->page_size);
 
     prog->nand_wr_in_progress = 1;
 
@@ -843,16 +838,16 @@ static int np_nand_read(uint32_t addr, np_page_t *page, uint32_t page_size,
 {
     uint32_t status;
 
-    status = nand_read_page(page->buf, page->page, page_size);
+    status = hal[prog->hal]->read_page(page->buf, page->page, page_size);
     switch (status)
     {
-    case NAND_READY:
+    case FLASH_STATUS_READY:
         break;
-    case NAND_ERROR:
+    case FLASH_STATUS_ERROR:
         if (np_send_bad_block_info(addr, block_size, false))
             return -1;
         break;
-    case NAND_TIMEOUT_ERROR:
+    case FLASH_STATUS_TIMEOUT:
         ERROR_PRINT("NAND write timeout at 0x%lx\r\n", addr);
         break;
     default:
@@ -1016,27 +1011,9 @@ static void np_fill_chip_info(np_conf_cmd_t *conf_cmd, np_prog_t *prog)
     prog->chip_info.page_size = conf_cmd->page_size;
     prog->chip_info.block_size = conf_cmd->block_size;
     prog->chip_info.total_size = conf_cmd->total_size;
-    prog->chip_info.spare_size = conf_cmd->spare_size;    
-    prog->chip_info.setup_time = conf_cmd->setup_time;
-    prog->chip_info.wait_setup_time = conf_cmd->wait_setup_time;
-    prog->chip_info.hold_setup_time = conf_cmd->hold_setup_time;
-    prog->chip_info.hi_z_setup_time = conf_cmd->hi_z_setup_time;
-    prog->chip_info.clr_setup_time = conf_cmd->clr_setup_time;
-    prog->chip_info.ar_setup_time = conf_cmd->ar_setup_time;
-    prog->chip_info.row_cycles = conf_cmd->row_cycles;
-    prog->chip_info.col_cycles = conf_cmd->col_cycles;
-    prog->chip_info.read1_cmd = conf_cmd->read1_cmd;
-    prog->chip_info.read2_cmd = conf_cmd->read2_cmd;
-    prog->chip_info.read_spare_cmd = conf_cmd->read_spare_cmd;    
-    prog->chip_info.read_id_cmd = conf_cmd->read_id_cmd;
-    prog->chip_info.reset_cmd = conf_cmd->reset_cmd;
-    prog->chip_info.write1_cmd = conf_cmd->write1_cmd;
-    prog->chip_info.write2_cmd = conf_cmd->write2_cmd;
-    prog->chip_info.erase1_cmd = conf_cmd->erase1_cmd;
-    prog->chip_info.erase2_cmd = conf_cmd->erase2_cmd;
-    prog->chip_info.status_cmd = conf_cmd->status_cmd;
+    prog->chip_info.spare_size = conf_cmd->spare_size;
     prog->chip_info.bb_mark_off = conf_cmd->bb_mark_off;
-    prog->chip_is_conf = 1;    
+    prog->chip_is_conf = 1;
 }
 
 static void np_print_chip_info(np_prog_t *prog)
@@ -1045,24 +1022,6 @@ static void np_print_chip_info(np_prog_t *prog)
     DEBUG_PRINT("Block size: %lu\r\n", prog->chip_info.block_size);
     DEBUG_PRINT("Total size: %lu\r\n", prog->chip_info.total_size);
     DEBUG_PRINT("Spare size: %lu\r\n", prog->chip_info.spare_size);    
-    DEBUG_PRINT("Setup time: %d\r\n", prog->chip_info.setup_time);
-    DEBUG_PRINT("Wait setup time: %d\r\n", prog->chip_info.wait_setup_time);
-    DEBUG_PRINT("Hold setup time: %d\r\n", prog->chip_info.hold_setup_time);
-    DEBUG_PRINT("HiZ setup time: %d\r\n", prog->chip_info.hi_z_setup_time);
-    DEBUG_PRINT("CLR setip time: %d\r\n", prog->chip_info.clr_setup_time);
-    DEBUG_PRINT("AR setip time: %d\r\n", prog->chip_info.ar_setup_time);
-    DEBUG_PRINT("Row cycles: %d\r\n", prog->chip_info.row_cycles);
-    DEBUG_PRINT("Col. cycles: %d\r\n", prog->chip_info.col_cycles);
-    DEBUG_PRINT("Read command 1: %d\r\n", prog->chip_info.read1_cmd);
-    DEBUG_PRINT("Read command 2: %d\r\n", prog->chip_info.read2_cmd);
-    DEBUG_PRINT("Read spare command: %d\r\n", prog->chip_info.read_spare_cmd);    
-    DEBUG_PRINT("Read ID command: %d\r\n", prog->chip_info.read_id_cmd);
-    DEBUG_PRINT("Reset command: %d\r\n", prog->chip_info.reset_cmd);
-    DEBUG_PRINT("Write 1 command: %d\r\n", prog->chip_info.write1_cmd);
-    DEBUG_PRINT("Write 2 command: %d\r\n", prog->chip_info.write2_cmd);
-    DEBUG_PRINT("Erase 1 command: %d\r\n", prog->chip_info.erase1_cmd);
-    DEBUG_PRINT("Erase 2 command: %d\r\n", prog->chip_info.erase2_cmd);
-    DEBUG_PRINT("Status command: %d\r\n", prog->chip_info.status_cmd);
     DEBUG_PRINT("Bad block mark offset: %d\r\n", prog->chip_info.bb_mark_off);
 }
 
@@ -1084,7 +1043,14 @@ static int np_cmd_nand_conf(np_prog_t *prog)
     np_fill_chip_info(conf_cmd, prog);
     np_print_chip_info(prog);
 
-    nand_init(&prog->chip_info);
+    prog->hal = conf_cmd->hal;
+    if (hal[prog->hal]->init(conf_cmd->hal_conf,
+        prog->rx_buf_len - sizeof(np_conf_cmd_t)))
+    {
+        ERROR_PRINT("Wrong buffer length for hal configuration command %lu\r\n",
+            prog->rx_buf_len);
+        return NP_ERR_LEN_INVALID;
+    }
 
     nand_bad_block_table_init();
     prog->bb_is_read = 0;

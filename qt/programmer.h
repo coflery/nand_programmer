@@ -1,4 +1,4 @@
-/*  Copyright (C) 2017 Bogdan Bogush <bogdan.s.bogush@gmail.com>
+/*  Copyright (C) 2020 NANDO authors
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 3.
  */
@@ -13,7 +13,8 @@
 #include "writer.h"
 #include "reader.h"
 #include "cmd.h"
-#include "chip_db.h"
+#include "parallel_chip_db.h"
+#include "spi_chip_db.h"
 
 using namespace std;
 

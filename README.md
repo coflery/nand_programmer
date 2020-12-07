@@ -5,11 +5,11 @@ NANDO is open source NAND programmer based on STM32 processor.
 
 PCB boards:
 
-<img src="img/board_v3_0.jpg" width="800">
+<img src="img/board.jpeg" width="800">
 
 Application:
 
-<img src="img/host_app_v2_1.jpeg">
+<img src="img/host_app.jpeg">
 
 ## Features
 - USB interface
@@ -38,6 +38,7 @@ Application:
 - K9F2G08U0C
 - K9F1G08U0E
 - K9F1208U0B
+- K9G8G08U0A
 #### Hynix
 - HY27US08121B 
 - HY27US08561A 
@@ -48,6 +49,8 @@ Application:
 - F59L2G81A
 #### Micron
 - MT29F4G08ABAD
+#### Macronix
+- MX30LF2G18AC
 
 ## Release binaries
 You can download host application deb package for Ubuntu/Windows installer, firmware binary for

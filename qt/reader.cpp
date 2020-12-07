@@ -1,4 +1,4 @@
-/*  Copyright (C) 2017 Bogdan Bogush <bogdan.s.bogush@gmail.com>
+/*  Copyright (C) 2020 NANDO authors
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 3.
  */
@@ -10,7 +10,7 @@
 #include <QTextBlock>
 #include <QTextCursor>
 
-#define READ_TIMEOUT 5000
+#define READ_TIMEOUT 10000
 #define BUF_SIZE 4096
 #define NOTIFY_LIMIT 131072 // 128KB
 
