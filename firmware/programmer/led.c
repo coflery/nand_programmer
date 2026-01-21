@@ -10,15 +10,15 @@ void led_init()
 {
     GPIO_InitTypeDef led_gpio;
 
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, 1);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC, 1);
 
     led_gpio.GPIO_Mode = GPIO_Mode_Out_PP;
-    led_gpio.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1;    
+    led_gpio.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_7;
     led_gpio.GPIO_Speed = GPIO_Speed_2MHz;
 
-    GPIO_Init(GPIOA, &led_gpio);
+    GPIO_Init(GPIOC, &led_gpio);
 
-    GPIO_ResetBits(GPIOA, GPIO_Pin_0 | GPIO_Pin_1);
+    GPIO_SetBits(GPIOC, GPIO_Pin_6 | GPIO_Pin_7);
 }
 
 static void led_set(GPIO_TypeDef *gpiox, uint16_t pin, bool on)
@@ -31,11 +31,11 @@ static void led_set(GPIO_TypeDef *gpiox, uint16_t pin, bool on)
 
 void led_wr_set(bool on)
 {
-    led_set(GPIOA, GPIO_Pin_0, on);
+    led_set(GPIOC, GPIO_Pin_6, on);
 }
 
 void led_rd_set(bool on)
 {
-    led_set(GPIOA, GPIO_Pin_1, on);
+    led_set(GPIOC, GPIO_Pin_7, on);
 }
 
