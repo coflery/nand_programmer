@@ -1,4 +1,4 @@
-/*  Copyright (C) 2017 Bogdan Bogush <bogdan.s.bogush@gmail.com>
+/*  Copyright (C) 2020 NANDO authors
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 3.
  */
@@ -6,6 +6,10 @@
 #include "logger.h"
 #include <QDebug>
 #include <QScrollBar>
+#include <QObject>
+
+Q_DECLARE_METATYPE(QTextCursor)
+Q_DECLARE_METATYPE(QtMsgType)
 
 Logger *Logger::logger;
 QTextEdit *Logger::logTextEdit;
@@ -53,17 +57,23 @@ void Logger::logHandler(QtMsgType type, const QMessageLogContext &context ,
 
         logTextEdit->verticalScrollBar()->
             setValue(logTextEdit->verticalScrollBar()->maximum());
-
     }
 }
 
 Logger::Logger()
 {
+    qRegisterMetaType<QTextCursor>();
+    qRegisterMetaType<QtMsgType>();
+
+    QObject::connect(this, SIGNAL(log(QString)), this, SLOT(slotLog(QString)));
     qInstallMessageHandler(logHandler);
+    oldBuf = std::cerr.rdbuf();
+    std::cerr.rdbuf(this);
 }
 
 Logger::~Logger()
 {
+    std::cerr.rdbuf(oldBuf);
     qInstallMessageHandler(nullptr);
 }
 
@@ -95,5 +105,25 @@ void Logger::putInstance()
 void Logger::setTextEdit(QTextEdit *textEdit)
 {
     logTextEdit = textEdit;
+}
+
+std::basic_streambuf<char>::int_type Logger::overflow(int_type v)
+{
+    emit log(tempBuf);
+    tempBuf.clear();
+
+    return v;
+}
+
+std::streamsize Logger::xsputn(const char *p, std::streamsize n)
+{
+    tempBuf.append(QString::fromLatin1(p, n));
+
+    return n;
+}
+
+void Logger::slotLog(QString msg)
+{
+    qCritical() << msg;
 }
 

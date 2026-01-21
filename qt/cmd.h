@@ -1,4 +1,4 @@
-/*  Copyright (C) 2017 Bogdan Bogush <bogdan.s.bogush@gmail.com>
+/*  Copyright (C) 2020 NANDO authors
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 3.
  */
@@ -34,29 +34,30 @@ typedef struct __attribute__((__packed__))
 {
     uint8_t skipBB : 1;
     uint8_t incSpare : 1;
+    uint8_t enableHwEcc: 1;
 } CmdFlags;
 
 typedef struct __attribute__((__packed__))
 {
     Cmd cmd;
-    uint32_t addr;
-    uint32_t len;
+    uint64_t addr;
+    uint64_t len;
     CmdFlags flags;
 } EraseCmd;
 
 typedef struct __attribute__((__packed__))
 {
     Cmd cmd;
-    uint32_t addr;
-    uint32_t len;
+    uint64_t addr;
+    uint64_t len;
     CmdFlags flags;
 } ReadCmd;
 
 typedef struct __attribute__((__packed__))
 {
     Cmd cmd;
-    uint32_t addr;
-    uint32_t len;
+    uint64_t addr;
+    uint64_t len;
     CmdFlags flags;
 } WriteStartCmd;
 
@@ -64,7 +65,6 @@ typedef struct __attribute__((__packed__))
 {
     Cmd cmd;
     uint8_t len;
-    uint8_t data[];
 } WriteDataCmd;
 
 typedef struct __attribute__((__packed__))
@@ -75,28 +75,11 @@ typedef struct __attribute__((__packed__))
 typedef struct __attribute__((__packed__))
 {
     Cmd cmd;
+    uint8_t hal;
     uint32_t pageSize;
     uint32_t blockSize;
-    uint32_t totalSize;
+    uint64_t totalSize;
     uint32_t spareSize;
-    uint8_t setupTime;
-    uint8_t waitSetupTime;
-    uint8_t holdSetupTime;
-    uint8_t hiZSetupTime;
-    uint8_t clrSetupTime;
-    uint8_t arSetupTime;
-    uint8_t rowCycles;
-    uint8_t colCycles;
-    uint8_t read1Cmd;
-    uint8_t read2Cmd;
-    uint8_t readSpareCmd;
-    uint8_t readIdCmd;
-    uint8_t resetCmd;
-    uint8_t write1Cmd;
-    uint8_t write2Cmd;
-    uint8_t erase1Cmd;
-    uint8_t erase2Cmd;
-    uint8_t statusCmd;
     uint8_t bbMarkOff;
 } ConfCmd;
 
@@ -136,7 +119,6 @@ typedef struct __attribute__((__packed__))
 {
     uint8_t code;
     uint8_t info;
-    uint8_t data[];
 } RespHeader;
 
 typedef struct __attribute__((__packed__))
@@ -151,29 +133,33 @@ typedef struct __attribute__((__packed__))
     ChipId nandId;
 } RespId;
 
+/* BB, write ack and error responses are aligned to the same size to avoid
+ * receiver wait for additional data */
 typedef struct __attribute__((__packed__))
 {
     RespHeader header;
-    uint32_t addr;
+    uint64_t addr;
     uint32_t size;
 } RespBadBlock;
 
 typedef struct __attribute__((__packed__))
 {
     RespHeader header;
-    uint32_t ackBytes;
+    uint64_t ackBytes;
+    uint8_t dummy[4];
 } RespWriteAck;
 
 typedef struct __attribute__((__packed__))
 {
     RespHeader header;
     uint8_t errCode;
+    uint8_t dummy[11];
 } RespError;
 
 typedef struct __attribute__((__packed__))
 {
     RespHeader header;
-    uint32_t progress;
+    uint64_t progress;
 } RespProgress;
 
 #endif // CMD_H

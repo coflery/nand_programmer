@@ -1,4 +1,4 @@
-/*  Copyright (C) 2017 Bogdan Bogush <bogdan.s.bogush@gmail.com>
+/*  Copyright (C) 2020 NANDO authors
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 3.
  */
@@ -6,114 +6,76 @@
 #ifndef CHIP_DB_H
 #define CHIP_DB_H
 
-#include <cstdint>
-#include <QString>
-#include <QObject>
-#include <QVector>
+#include "chip_info.h"
+#include <QStringList>
 #include <QFile>
+#include <QTextStream>
+#include <QVector>
 
-enum
+class ChipDb
 {
-    CHIP_ID_NONE = 0,
-    CHIP_ID_K9F2G08U0C = 1,
-    CHIP_ID_LAST = 2,
-};
+protected:
+    QVector<ChipInfo *> chipInfoVector;
 
-enum
-{
-    CHIP_PARAM_NAME,
-    CHIP_PARAM_PAGE_SIZE,
-    CHIP_PARAM_BLOCK_SIZE,
-    CHIP_PARAM_TOTAL_SIZE,
-    CHIP_PARAM_SPARE_SIZE,
-    CHIP_PARAM_T_CS,
-    CHIP_PARAM_T_CLS,
-    CHIP_PARAM_T_ALS,
-    CHIP_PARAM_T_CLR,
-    CHIP_PARAM_T_AR,
-    CHIP_PARAM_T_WP,
-    CHIP_PARAM_T_RP,
-    CHIP_PARAM_T_DS,
-    CHIP_PARAM_T_CH,
-    CHIP_PARAM_T_CLH,
-    CHIP_PARAM_T_ALH,
-    CHIP_PARAM_T_WC,
-    CHIP_PARAM_T_RC,
-    CHIP_PARAM_T_REA,
-    CHIP_PARAM_ROW_CYCLES,
-    CHIP_PARAM_COL_CYCLES,
-    CHIP_PARAM_READ1_CMD,
-    CHIP_PARAM_READ2_CMD,
-    CHIP_PARAM_READ_SPARE_CMD,
-    CHIP_PARAM_READ_ID_CMD,
-    CHIP_PARAM_RESET_CMD,
-    CHIP_PARAM_WRITE1_CMD,
-    CHIP_PARAM_WRITE2_CMD,
-    CHIP_PARAM_ERASE1_CMD,
-    CHIP_PARAM_ERASE2_CMD,
-    CHIP_PARAM_STATUS_CMD,
-    CHIP_PARAM_BB_MARK_OFF,
-    CHIP_PARAM_ID1,
-    CHIP_PARAM_ID2,
-    CHIP_PARAM_ID3,
-    CHIP_PARAM_ID4,
-    CHIP_PARAM_ID5,
-    CHIP_PARAM_NUM,
-};
-
-typedef struct
-{
-    uint32_t id;
-    QString name;
-    uint32_t params[CHIP_PARAM_NUM];
-} ChipInfo;
-
-class ChipDb : public QObject
-{
-    Q_OBJECT
-
-    QVector<ChipInfo> chipInfoVector;
-
-    QString findFile();
-    int stringToChipInfo(const QString &s, ChipInfo &ci);
-    int chipInfoToString(const ChipInfo &ci, QString &s);
+    QString findFile(QString fileName);
     void readFromCvs();
+    virtual QString getDbFileName() = 0;
     int readCommentsFromCsv(QFile &dbFile, QString &comments);
     void writeToCvs();
-    ChipInfo *getChipInfo(int chipIndex);
+    virtual ChipInfo *stringToChipInfo(const QString &s) = 0;
+    virtual int chipInfoToString(ChipInfo *chipInfo, QString &s) = 0;
 
 public:
-    explicit ChipDb(QObject *parent = nullptr);
+    const QString paramNotDefSymbol = "-";
+    const uint32_t paramNotDefValue = 0xFFFFFFFF;
+
+    ChipDb();
+    virtual ~ChipDb();
+
+    int getParamFromHexString(const QString &value, quint64 &param);
+    int getParamFromString(const QString &value, quint64 &param);
+    int getParamFromString(const QString &value, uint8_t &param);
+    int getStringFromParam(const quint64 &param, QString &value);
+    int getHexStringFromParam(const quint64 &param, QString &value);
+    int getOptParamFromString(const QString &value, quint64 &param);
+    int getOptParamFromHexString(const QString &value, quint64 &param);
+    int getStringFromOptParam(const quint64 &param, QString &value);
+    int getHexStringFromOptParam(const quint64 &param, QString &value);
+    bool isParamValid(quint64 param, quint64 min, quint64 max);
+    bool isOptParamValid(quint64 param, quint64 min, quint64 max);
+
+    virtual QString getNameByChipId(uint32_t id1, uint32_t id2,
+        uint32_t id3, uint32_t id4, uint32_t id5) = 0;
     QStringList getNames();
     ChipInfo *chipInfoGetById(int id);
-    int getIdByChipId(uint32_t id1, uint32_t id2, uint32_t id3, uint32_t id4,
-        uint32_t id5);
+    ChipInfo *chipInfoGetByName(QString name);
     uint32_t pageSizeGetById(int id);
+    uint32_t pageSizeGetByName(const QString &name);
     uint32_t extendedPageSizeGetById(int id);
-    uint32_t totalSizeGetById(int id);
-    uint32_t extendedTotalSizeGetById(int id);
-    void addChip(ChipInfo &chipInfo);
+    uint32_t extendedPageSizeGetByName(const QString &name);
+    quint64 totalSizeGetById(int id);
+    quint64 totalSizeGetByName(const QString &name);
+    quint64 extendedTotalSizeGetById(int id);
+    quint64 extendedTotalSizeGetByName(const QString &name);
+    quint64 blockCountGetByName(const QString &name);
+    void addChip(ChipInfo *chipInfo);
     void delChip(int index);
     int size();
     void commit();
     void reset();
-    int getParamFromString(const QString &value, uint32_t &param);
-    int getParamFromHexString(const QString &value, uint32_t &param);
-    int getStringFromParam(const uint32_t &param, QString &value);
-    int getHexStringFromParam(const uint32_t &param, QString &value);
-    int getOptParamFromString(const QString &value, uint32_t &param);
-    int getOptParamFromHexString(const QString &value, uint32_t &param);
-    int getStringFromOptParam(const uint32_t &param, QString &value);
-    int getHexStringFromOptParam(const uint32_t &param, QString &value);
-    bool isParamValid(uint32_t param, uint32_t min, uint32_t max);
-    bool isOptParamValid(uint32_t param, uint32_t min, uint32_t max);
+    ChipInfo *getChipInfo(int chipIndex);
     QString getChipName(int chipIndex);
     int setChipName(int chipIndex, const QString &name);
-    uint32_t getChipParam(int chipIndex, int paramIndex);
-    int setChipParam(int chipIndex, int paramIndex, uint32_t paramValue);
+    uint32_t getPageSize(int chipIndex);
+    int setPageSize(int chipIndex, uint32_t pageSize);
+    uint32_t getBlockSize(int chipIndex);
+    int setBlockSize(int chipIndex, uint32_t blockSize);
+    quint64 getTotalSize(int chipIndex);
+    int setTotalSize(int chipIndex, quint64 totalSize);
+    uint32_t getSpareSize(int chipIndex);
+    int setSpareSize(int chipIndex, uint32_t spareSize);
+    uint8_t getBBMarkOffset(int chipIndex);
+    int setBBMarkOffset(int chipIndex, uint8_t bbMarkOffset);
 };
 
-
-
 #endif // CHIP_DB_H
-

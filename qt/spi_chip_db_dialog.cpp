@@ -1,34 +1,42 @@
-/*  Copyright (C) 2017 Bogdan Bogush <bogdan.s.bogush@gmail.com>
+/*  Copyright (C) 2020 NANDO authors
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 3.
  */
 
-#include "chip_db_dialog.h"
-#include "ui_chip_db_dialog.h"
+#include "spi_chip_db_dialog.h"
+#include "ui_spi_chip_db_dialog.h"
 
 #define HEADER_LONG_WIDTH 120
-#define HEADER_MED_WIDTH 100
+#define HEADER_MED_WIDTH 110
 #define HEADER_SHORT_WIDTH 50
 
-ChipDbDialog::ChipDbDialog(ChipDb *chipDb, QWidget *parent) : QDialog(parent),
-    ui(new Ui::ChipDbDialog), chipDbTableModel(chipDb, parent)
+SpiChipDbDialog::SpiChipDbDialog(SpiChipDb *chipDb, QWidget *parent) :
+    QDialog(parent), ui(new Ui::SpiChipDbDialog),
+    chipDbTableModel(chipDb, parent)
 {
     ui->setupUi(this);
+
+#ifdef Q_OS_WIN32
+    QFont font("Courier New", 6);
+    ui->chipDbTableView->setFont(font);
+#endif
+
     chipDbProxyModel.setSourceModel(&chipDbTableModel);
     ui->chipDbTableView->setModel(&chipDbProxyModel);
-    ui->chipDbTableView->setColumnWidth(CHIP_PARAM_NAME, HEADER_LONG_WIDTH);
-    ui->chipDbTableView->setColumnWidth(CHIP_PARAM_PAGE_SIZE,
+    ui->chipDbTableView->setColumnWidth(SpiChipDb::CHIP_PARAM_NAME,
+        HEADER_LONG_WIDTH);
+    ui->chipDbTableView->setColumnWidth(SpiChipDb::CHIP_PARAM_PAGE_SIZE,
         HEADER_MED_WIDTH);
-    ui->chipDbTableView->setColumnWidth(CHIP_PARAM_BLOCK_SIZE,
+    ui->chipDbTableView->setColumnWidth(SpiChipDb::CHIP_PARAM_BLOCK_SIZE,
         HEADER_MED_WIDTH);
-    ui->chipDbTableView->setColumnWidth(CHIP_PARAM_TOTAL_SIZE,
+    ui->chipDbTableView->setColumnWidth(SpiChipDb::CHIP_PARAM_TOTAL_SIZE,
         HEADER_MED_WIDTH);
-    ui->chipDbTableView->setColumnWidth(CHIP_PARAM_SPARE_SIZE,
-        HEADER_MED_WIDTH);
-    for (int i = CHIP_PARAM_T_CS; i <= CHIP_PARAM_T_REA; i++)
-        ui->chipDbTableView->setColumnWidth(i, HEADER_SHORT_WIDTH);
-    for (int i = CHIP_PARAM_ROW_CYCLES; i <= CHIP_PARAM_BB_MARK_OFF; i++)
+
+    for (int i = SpiChipDb::CHIP_PARAM_PAGE_OFF;
+         i <= SpiChipDb::CHIP_PARAM_FREQ; i++)
+    {
         ui->chipDbTableView->setColumnWidth(i, HEADER_MED_WIDTH);
+    }
 
     connect(ui->addChipDbButton, SIGNAL(clicked()), this,
         SLOT(slotAddChipDbButtonClicked()));
@@ -40,17 +48,17 @@ ChipDbDialog::ChipDbDialog(ChipDb *chipDb, QWidget *parent) : QDialog(parent),
         SIGNAL(clicked()), this, SLOT(slotCancelButtonClicked()));
 }
 
-ChipDbDialog::~ChipDbDialog()
+SpiChipDbDialog::~SpiChipDbDialog()
 {
     delete ui;
 }
 
-void ChipDbDialog::slotAddChipDbButtonClicked()
+void SpiChipDbDialog::slotAddChipDbButtonClicked()
 {
     chipDbTableModel.addRow();
 }
 
-void ChipDbDialog::slotDelChipDbButtonClicked()
+void SpiChipDbDialog::slotDelChipDbButtonClicked()
 {
     QModelIndexList selection = ui->chipDbTableView->selectionModel()->
         selectedRows();
@@ -61,12 +69,12 @@ void ChipDbDialog::slotDelChipDbButtonClicked()
     chipDbTableModel.delRow(selection.at(0).row());
 }
 
-void ChipDbDialog::slotOkButtonClicked()
+void SpiChipDbDialog::slotOkButtonClicked()
 {
     chipDbTableModel.commit();
 }
 
-void ChipDbDialog::slotCancelButtonClicked()
+void SpiChipDbDialog::slotCancelButtonClicked()
 {
     chipDbTableModel.reset();
 }

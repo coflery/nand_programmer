@@ -1,4 +1,4 @@
-/*  Copyright (C) 2017 Bogdan Bogush <bogdan.s.bogush@gmail.com>
+/*  Copyright (C) 2020 NANDO authors
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 3.
  */
@@ -6,17 +6,21 @@
 #include "writer.h"
 #include "err.h"
 #include <QDebug>
-#include <QTextBlock>
-#include <QTextCursor>
 
 #define READ_ACK_TIMEOUT 5000
-#define BUF_SIZE 64
 
-Q_DECLARE_METATYPE(QtMsgType)
+Writer::Writer()
+{
+}
 
-void Writer::init(const QString &portName, qint32 baudRate, uint8_t *buf,
-    uint32_t addr, uint32_t len, uint32_t pageSize, bool skipBB, bool incSpare,
-    uint8_t startCmd, uint8_t dataCmd, uint8_t endCmd)
+Writer::~Writer()
+{
+    stop();
+}
+
+void Writer::init(const QString &portName, qint32 baudRate, SyncBuffer *buf,
+    quint64 addr, quint64 len, uint32_t pageSize, bool skipBB, bool incSpare,
+    bool enableHwEcc, uint8_t startCmd, uint8_t dataCmd, uint8_t endCmd)
 {
     this->portName = portName;
     this->baudRate = baudRate;
@@ -26,23 +30,23 @@ void Writer::init(const QString &portName, qint32 baudRate, uint8_t *buf,
     this->pageSize = pageSize;
     this->skipBB = skipBB;
     this->incSpare = incSpare;
+    this->enableHwEcc = enableHwEcc;
     this->startCmd = startCmd;
     this->dataCmd = dataCmd;
     this->endCmd = endCmd;
     bytesWritten = 0;
     bytesAcked = 0;
+    offset = 0;
+    restartRead = false;
 }
 
-int Writer::write(uint8_t *data, uint32_t dataLen)
+int Writer::write(char *data, uint32_t dataLen)
 {
     qint64 ret;
 
     ret = serialPort->write(reinterpret_cast<const char *>(data), dataLen);
     if (ret < 0)
-    {
-        logErr(QString("Failed to write: %1").arg(serialPort->errorString()));
         return -1;
-    }
     else if (static_cast<uint32_t>(ret) < dataLen)
     {
         logErr(QString("Data was partialy written, returned %1, expected %2")
@@ -53,24 +57,18 @@ int Writer::write(uint8_t *data, uint32_t dataLen)
     return 0;
 }
 
-int Writer::read(uint8_t *data, uint32_t dataLen)
+int Writer::read(char *data, uint32_t dataLen)
 {
-    qint64 ret;
+    std::function<void(int)> cb = std::bind(&Writer::readCb, this,
+        std::placeholders::_1);
 
-    if (!serialPort->waitForReadyRead(READ_ACK_TIMEOUT))
+    if (serialPort->asyncReadWithTimeout(data, dataLen, cb, READ_ACK_TIMEOUT)
+        < 0)
     {
-        logErr("Write ACK was not received");
         return -1;
     }
 
-    ret = serialPort->read(reinterpret_cast<char *>(data), dataLen);
-    if (ret < 0)
-    {
-        logErr("Failed to read ACK");
-        return -1;
-    }
-
-    return static_cast<int>(ret);
+    return 0;
 }
 
 int Writer::handleWriteAck(RespHeader *header, uint32_t len)
@@ -110,6 +108,10 @@ int Writer::handleBadBlock(RespHeader *header, uint32_t len, bool isSkipped)
     logInfo(message.arg(badBlock->addr, 8, 16, QLatin1Char('0'))
         .arg(badBlock->size, 8, 16, QLatin1Char('0')));
 
+    // Bad block notification is received before acknowledge therefore need to restart read.
+    // Need to implement async write to avoid this.
+    restartRead = true;
+
     return size;
 }
 
@@ -127,7 +129,7 @@ int Writer::handleError(RespHeader *header, uint32_t len)
     return -1;
 }
 
-int Writer::handleStatus(uint8_t *pbuf, uint32_t len)
+int Writer::handleStatus(char *pbuf, uint32_t len)
 {
     RespHeader *header = reinterpret_cast<RespHeader *>(pbuf);
     uint8_t status = header->info;
@@ -150,7 +152,7 @@ int Writer::handleStatus(uint8_t *pbuf, uint32_t len)
     return -1;
 }
 
-int Writer::handlePacket(uint8_t *pbuf, uint32_t len)
+int Writer::handlePacket(char *pbuf, uint32_t len)
 {
     RespHeader *header = reinterpret_cast<RespHeader *>(pbuf);
 
@@ -167,7 +169,7 @@ int Writer::handlePacket(uint8_t *pbuf, uint32_t len)
     return handleStatus(pbuf, len);
 }
 
-int Writer::handlePackets(uint8_t *pbuf, uint32_t len)
+int Writer::handlePackets(char *pbuf, uint32_t len)
 {
     int ret;
     uint32_t offset = 0;
@@ -190,26 +192,53 @@ int Writer::handlePackets(uint8_t *pbuf, uint32_t len)
     return static_cast<int>(len - offset);
 }
 
-int Writer::readData()
+void Writer::readCb(int size)
 {
-    uint8_t pbuf[BUF_SIZE];
-    int len, offset = 0;
+    if (size < 0)
+        goto Error;
 
-    do
+    size += offset;
+
+    if ((offset = handlePackets(pbuf, static_cast<uint32_t>(size))) < 0)
+        goto Error;
+
+    if (offset)
     {
-        if ((len = read(pbuf + offset,
-            static_cast<uint32_t>(BUF_SIZE - offset))) < 0)
-        {
-            return -1;
-        }
-        len += offset;
-
-        if ((offset = handlePackets(pbuf, static_cast<uint32_t>(len))) < 0)
-            return -1;
+        if (read(pbuf + offset, bufSize - offset) < 0)
+            goto Error;
+        return;
     }
-    while (offset);
 
-    return 0;
+    if (restartRead)
+    {
+        restartRead = false;
+        if (read(pbuf + offset, bufSize - offset) < 0)
+            goto Error;
+        return;
+    }
+
+    if (cmd == startCmd)
+    {
+        if (writeData())
+            goto Error;
+    }
+    else if (cmd == dataCmd)
+    {
+        if (len)
+        {
+            if (writeData())
+                goto Error;
+        }
+        else if (writeEnd())
+            goto Error;
+    }
+    else if (cmd == endCmd)
+        emit result(0);
+
+    return;
+
+Error:
+    emit result(-1);
 }
 
 int Writer::writeStart()
@@ -221,14 +250,16 @@ int Writer::writeStart()
     writeStartCmd.len = len;
     writeStartCmd.flags.skipBB = skipBB;
     writeStartCmd.flags.incSpare = incSpare;
+    writeStartCmd.flags.enableHwEcc = enableHwEcc;
+    cmd = startCmd;
 
-    if (write(reinterpret_cast<uint8_t *>(&writeStartCmd),
+    if (write(reinterpret_cast<char *>(&writeStartCmd),
         sizeof(WriteStartCmd)))
     {
         return -1;
     }
 
-    if (readData())
+    if (read(pbuf, bufSize))
         return -1;
 
     return 0;
@@ -236,13 +267,18 @@ int Writer::writeStart()
 
 int Writer::writeData()
 {
-    uint8_t pbuf[BUF_SIZE];
     WriteDataCmd *writeDataCmd = reinterpret_cast<WriteDataCmd *>(pbuf);
-    uint32_t dataLen, dataLenMax, headerLen, pageLim;
+    uint32_t dataLen, dataLenMax, headerLen, pageLim, bufWriten = 0;
 
     writeDataCmd->cmd.code = dataCmd;
     headerLen = sizeof(WriteDataCmd);
-    dataLenMax = BUF_SIZE - headerLen;
+    dataLenMax = bufSize - headerLen;
+    cmd = dataCmd;
+
+    // Wait new chunk of data is written to buffer by caller
+    std::unique_lock<std::mutex> lck(buf->mutex);
+    buf->cv.wait(lck, [this] { return this->buf->ready; });
+    buf->ready = false;
 
     while (len)
     {
@@ -253,19 +289,20 @@ int Writer::writeData()
             dataLen = pageLim - bytesWritten;
 
         writeDataCmd->len = static_cast<uint8_t>(dataLen);
-        memcpy(pbuf + headerLen, buf + bytesWritten, dataLen);
+        memcpy(pbuf + headerLen, buf->buf.data() + bufWriten, dataLen);
         if (write(pbuf, headerLen + dataLen))
             return -1;
 
+        bufWriten += dataLen;
         bytesWritten += dataLen;
         len -= dataLen;
 
-        if (len && bytesWritten != pageLim)
-            continue;
-
-        if (readData())
-            return -1;
+        if (!len || bytesWritten == pageLim)
+            break;
     }
+
+    if (read(pbuf, sizeof(RespWriteAck)))
+        return -1;
 
     return 0;
 }
@@ -275,11 +312,12 @@ int Writer::writeEnd()
     WriteEndCmd writeEndCmd;
 
     writeEndCmd.cmd.code = endCmd;
+    cmd = endCmd;
 
-    if (write(reinterpret_cast<uint8_t *>(&writeEndCmd), sizeof(WriteEndCmd)))
+    if (write(reinterpret_cast<char *>(&writeEndCmd), sizeof(WriteEndCmd)))
         return -1;
 
-    if (readData())
+    if (read(pbuf, bufSize))
         return -1;
 
     return 0;
@@ -287,48 +325,41 @@ int Writer::writeEnd()
 
 int Writer::serialPortCreate()
 {
-    serialPort = new QSerialPort();
+    serialPort = new SerialPort();
 
-    serialPort->setPortName(portName);
-    serialPort->setBaudRate(baudRate);
-
-    if (!serialPort->open(QIODevice::ReadWrite))
-    {
-        logErr(QString("Failed to open serial port: %1")
-            .arg(serialPort->errorString()));
+    if (!serialPort->start(portName.toLatin1(), baudRate))
         return -1;
-    }
 
     return 0;
 }
 
 void Writer::serialPortDestroy()
 {
-    serialPort->close();
-    free(serialPort);
+    if (!serialPort)
+        return;
+    serialPort->stop();
+    delete serialPort;
+    serialPort = nullptr;
 }
 
-void Writer::run()
+void Writer::start()
 {
-    int ret = -1;
-
-    /* Required for logger */
-    qRegisterMetaType<QtMsgType>();
-
     if (serialPortCreate())
         goto Exit;
 
     if (writeStart())
         goto Exit;
-    if (writeData())
-        goto Exit;
-    if (writeEnd())
-        goto Exit;
 
-    ret = 0;
+    return;
+
  Exit:
     serialPortDestroy();
-    emit result(ret);
+    emit result(-1);
+}
+
+void Writer::stop()
+{
+    serialPortDestroy();
 }
 
 void Writer::logErr(const QString& msg)

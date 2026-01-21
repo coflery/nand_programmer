@@ -1,4 +1,4 @@
-/*  Copyright (C) 2017 Bogdan Bogush <bogdan.s.bogush@gmail.com>
+/*  Copyright (C) 2020 NANDO authors
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 3.
  */
@@ -7,6 +7,7 @@
 #define SETTINGS_PROGRAMMER_DIALOG_H
 
 #include <QDialog>
+#include <QSerialPortInfo>
 
 namespace Ui {
 class SettingsProgrammerDialog;
@@ -25,9 +26,16 @@ public:
     bool isSkipBB();
     void setIncSpare(bool incSpare);
     bool isIncSpare();
+    void setHwEccEnabled(bool enableHwEcc);
+    bool isHwEccEnabled();
+    void setAlertEnabled(bool enableAlert);
+    bool isAlertEnabled();
 
 private:
     Ui::SettingsProgrammerDialog *ui;
+
+private slots:
+    void fillPortsInfo();
 };
 
 #endif // SETTINGS_PROGRAMMER_DIALOG_H

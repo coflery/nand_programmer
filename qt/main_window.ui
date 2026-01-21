@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>580</width>
+    <width>600</width>
     <height>570</height>
    </rect>
   </property>
@@ -23,43 +23,8 @@
    </property>
    <layout class="QGridLayout" name="gridLayout_4">
     <item row="1" column="0">
-     <layout class="QGridLayout" name="gridLayout">
-      <property name="sizeConstraint">
-       <enum>QLayout::SetDefaultConstraint</enum>
-      </property>
-      <item row="0" column="2">
-       <spacer name="horizontalSpacer">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>681</width>
-          <height>17</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item row="0" column="0">
-       <widget class="QLabel" name="deviceLabel">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>71</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>Chip ID:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
+     <layout class="QGridLayout" name="gridLayout_3">
+      <item row="2" column="5">
        <widget class="QLabel" name="deviceValueLabel">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
@@ -69,42 +34,12 @@
         </property>
         <property name="minimumSize">
          <size>
-          <width>190</width>
+          <width>220</width>
           <height>0</height>
          </size>
         </property>
         <property name="text">
          <string/>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </item>
-    <item row="0" column="0">
-     <layout class="QGridLayout" name="gridLayout_3">
-      <item row="2" column="4">
-       <spacer name="horizontalSpacer_2">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>40</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item row="2" column="1">
-       <widget class="QLabel" name="label_2">
-        <property name="maximumSize">
-         <size>
-          <width>71</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="text">
-         <string>Select chip:</string>
         </property>
        </widget>
       </item>
@@ -114,7 +49,7 @@
          <bool>false</bool>
         </property>
         <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
@@ -136,10 +71,55 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="3">
+      <item row="2" column="4">
+       <widget class="QLabel" name="deviceLabel">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Chip ID:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="6">
+       <spacer name="horizontalSpacer_2">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLabel" name="currentChipLabel">
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Select chip:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
        <widget class="QPushButton" name="detectPushButton">
         <property name="enabled">
          <bool>false</bool>
+        </property>
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
         </property>
         <property name="maximumSize">
          <size>
@@ -154,12 +134,12 @@
       </item>
      </layout>
     </item>
-    <item row="2" column="0">
+    <item row="5" column="0">
      <widget class="QSplitter" name="splitter">
       <property name="orientation">
        <enum>Qt::Vertical</enum>
       </property>
-      <widget class="QTableView" name="bufferTableView">
+      <widget class="DataViewer" name="dataViewer" native="true">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Expanding" vsizetype="Maximum">
          <horstretch>0</horstretch>
@@ -244,6 +224,81 @@
       </widget>
      </widget>
     </item>
+    <item row="0" column="0">
+     <layout class="QGridLayout" name="gridLayout">
+      <property name="sizeConstraint">
+       <enum>QLayout::SetDefaultConstraint</enum>
+      </property>
+      <item row="1" column="1">
+       <widget class="QLabel" name="label_2">
+        <property name="text">
+         <string>Work file:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <widget class="QLineEdit" name="filePathLineEdit"/>
+      </item>
+      <item row="1" column="0">
+       <widget class="QPushButton" name="selectFilePushButton">
+        <property name="text">
+         <string>Select File</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item row="2" column="0">
+     <layout class="QGridLayout" name="AddressGridLayout" columnstretch="0,0,0,0,0,0,0">
+      <item row="1" column="6">
+       <spacer name="horizontalSpacer_3">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="firstLabel">
+        <property name="text">
+         <string>First block:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <widget class="QLabel" name="lastLabel">
+        <property name="text">
+         <string>Last block:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QSpinBox" name="firstSpinBox"/>
+      </item>
+      <item row="1" column="3">
+       <widget class="QSpinBox" name="lastSpinBox"/>
+      </item>
+      <item row="1" column="4">
+       <widget class="QLabel" name="blockSizeLabel">
+        <property name="text">
+         <string>Block size:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="5">
+       <widget class="QLabel" name="blockSizeValueLabel">
+        <property name="text">
+         <string>0x0</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
    </layout>
   </widget>
   <widget class="QMenuBar" name="menuBar">
@@ -251,8 +306,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>580</width>
-     <height>22</height>
+     <width>600</width>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuDevice">
@@ -263,14 +318,8 @@
     <addaction name="actionErase"/>
     <addaction name="actionRead"/>
     <addaction name="actionWrite"/>
+    <addaction name="actionVerify"/>
     <addaction name="actionReadBadBlocks"/>
-   </widget>
-   <widget class="QMenu" name="menuFile">
-    <property name="title">
-     <string>File</string>
-    </property>
-    <addaction name="actionOpen"/>
-    <addaction name="actionSave"/>
    </widget>
    <widget class="QMenu" name="menuProgrammer">
     <property name="title">
@@ -283,7 +332,8 @@
      <string>Settings</string>
     </property>
     <addaction name="actionProgrammer"/>
-    <addaction name="actionChipDb"/>
+    <addaction name="actionParallelChipDb"/>
+    <addaction name="actionSpiChipDb"/>
     <addaction name="separator"/>
     <addaction name="actionFirmwareUpdate"/>
    </widget>
@@ -293,7 +343,6 @@
     </property>
     <addaction name="actionAbout"/>
    </widget>
-   <addaction name="menuFile"/>
    <addaction name="menuProgrammer"/>
    <addaction name="menuDevice"/>
    <addaction name="menuSettings"/>
@@ -332,16 +381,6 @@
     <string>Connect</string>
    </property>
   </action>
-  <action name="actionOpen">
-   <property name="text">
-    <string>Open</string>
-   </property>
-  </action>
-  <action name="actionSave">
-   <property name="text">
-    <string>Save</string>
-   </property>
-  </action>
   <action name="actionRead">
    <property name="enabled">
     <bool>false</bool>
@@ -371,6 +410,14 @@
     <string>Programmer</string>
    </property>
   </action>
+    <action name="actionVerify">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Verify</string>
+   </property>
+  </action>
   <action name="actionReadBadBlocks">
    <property name="enabled">
     <bool>false</bool>
@@ -379,9 +426,9 @@
     <string>Read bad blocks</string>
    </property>
   </action>
-  <action name="actionChipDb">
+  <action name="actionParallelChipDb">
    <property name="text">
-    <string>Chip database</string>
+    <string>Parallel chip database</string>
    </property>
   </action>
   <action name="actionAbout">
@@ -397,8 +444,21 @@
     <string>Firmware update</string>
    </property>
   </action>
+  <action name="actionSpiChipDb">
+   <property name="text">
+    <string>SPI chip database</string>
+   </property>
+  </action>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
+ <customwidgets>
+  <customwidget>
+   <class>DataViewer</class>
+   <extends>QWidget</extends>
+   <header>dataviewer.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <resources>
   <include location="icons.qrc"/>
  </resources>

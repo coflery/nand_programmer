@@ -1,4 +1,4 @@
-/*  Copyright (C) 2017 Bogdan Bogush <bogdan.s.bogush@gmail.com>
+/*  Copyright (C) 2020 NANDO authors
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 3.
  */
@@ -7,17 +7,22 @@
 #include "cmd.h"
 #include "err.h"
 #include <QDebug>
-#include <QTextBlock>
-#include <QTextCursor>
 
-#define READ_TIMEOUT 5000
-#define BUF_SIZE 4096
+#define READ_TIMEOUT 10
 #define NOTIFY_LIMIT 131072 // 128KB
 
-Q_DECLARE_METATYPE(QtMsgType)
 
-void Reader::init(const QString &portName, qint32 baudRate, uint8_t *rbuf,
-    uint32_t rlen, const uint8_t *wbuf, uint32_t wlen, bool isSkipBB,
+Reader::Reader()
+{
+}
+
+Reader::~Reader()
+{
+    stop();
+}
+
+void Reader::init(const QString &portName, qint32 baudRate, SyncBuffer *rbuf,
+    quint64 rlen, const uint8_t *wbuf, uint32_t wlen, bool isSkipBB,
     bool isReadLess)
 {
     this->portName = portName;
@@ -31,6 +36,7 @@ void Reader::init(const QString &portName, qint32 baudRate, uint8_t *rbuf,
     readOffset = 0;
     bytesRead = 0;
     bytesReadNotified = 0;
+    offset = 0;
 }
 
 int Reader::write(const uint8_t *data, uint32_t len)
@@ -38,11 +44,8 @@ int Reader::write(const uint8_t *data, uint32_t len)
     qint64 ret;
 
     ret = serialPort->write(reinterpret_cast<const char *>(data), len);
-    if (ret < 0)
-    {
-        logErr(QString("Failed to write: %1").arg(serialPort->errorString()));
+    if (!ret)
         return -1;
-    }
     else if (ret < len)
     {
         logErr(QString("Data was partialy written, returned %1, expected %2")
@@ -58,27 +61,7 @@ int Reader::readStart()
     return write(wbuf, wlen);
 }
 
-int Reader::read(uint8_t *pbuf, uint32_t len)
-{
-    qint64 ret;
-
-    if (!serialPort->waitForReadyRead(READ_TIMEOUT))
-    {
-        logErr("Read data timeout");
-        return -1;
-    }
-
-    ret = serialPort->read(reinterpret_cast<char *>(pbuf), len);
-    if (ret < 0)
-    {
-        logErr("Failed to read data");
-        return -1;
-    }
-
-    return static_cast<int>(ret);
-}
-
-int Reader::handleBadBlock(uint8_t *pbuf, uint32_t len, bool isSkipped)
+int Reader::handleBadBlock(char *pbuf, uint32_t len, bool isSkipped)
 {
     RespBadBlock *badBlock = reinterpret_cast<RespBadBlock *>(pbuf);
     size_t size = sizeof(RespBadBlock);
@@ -102,7 +85,7 @@ int Reader::handleBadBlock(uint8_t *pbuf, uint32_t len, bool isSkipped)
     return static_cast<int>(size);
 }
 
-int Reader::handleError(uint8_t *pbuf, uint32_t len)
+int Reader::handleError(char *pbuf, uint32_t len)
 {
     RespError *err = reinterpret_cast<RespError *>(pbuf);
     size_t size = sizeof(RespError);
@@ -116,7 +99,7 @@ int Reader::handleError(uint8_t *pbuf, uint32_t len)
     return -1;
 }
 
-int Reader::handleProgress(uint8_t *pbuf, uint32_t len)
+int Reader::handleProgress(char *pbuf, uint32_t len)
 {
     RespProgress *resp = reinterpret_cast<RespProgress *>(pbuf);
     size_t size = sizeof(RespProgress);
@@ -129,7 +112,7 @@ int Reader::handleProgress(uint8_t *pbuf, uint32_t len)
     return static_cast<int>(size);
 }
 
-int Reader::handleStatus(uint8_t *pbuf, uint32_t len)
+int Reader::handleStatus(char *pbuf, uint32_t len)
 {
     RespHeader *header = reinterpret_cast<RespHeader *>(pbuf);
 
@@ -156,13 +139,14 @@ int Reader::handleStatus(uint8_t *pbuf, uint32_t len)
     return 0;
 }
 
-int Reader::handleData(uint8_t *pbuf, uint32_t len)
+int Reader::handleData(char *pbuf, uint32_t len)
 {
     RespHeader *header = reinterpret_cast<RespHeader *>(pbuf);
+    char *data = pbuf + sizeof(RespHeader);
     uint8_t dataSize = header->info;
     size_t headerSize = sizeof(RespHeader), packetSize = headerSize + dataSize;
 
-    if (!dataSize || packetSize > BUF_SIZE)
+    if (!dataSize || packetSize > bufSize)
     {
         logErr(QString("Wrong data length in response header: %1")
             .arg(dataSize));
@@ -178,14 +162,17 @@ int Reader::handleData(uint8_t *pbuf, uint32_t len)
         return -1;
     }
 
-    memcpy(rbuf + readOffset, header->data, dataSize);
+    rbuf->mutex.lock();
+    rbuf->buf.insert(rbuf->buf.end(), data, data + dataSize);
+    rbuf->mutex.unlock();
+
     readOffset += dataSize;
     bytesRead += dataSize;
 
     return static_cast<int>(packetSize);
 }
 
-int Reader::handlePacket(uint8_t *pbuf, uint32_t len)
+int Reader::handlePacket(char *pbuf, uint32_t len)
 {
     RespHeader *header = reinterpret_cast<RespHeader *>(pbuf);
 
@@ -205,7 +192,7 @@ int Reader::handlePacket(uint8_t *pbuf, uint32_t len)
     }
 }
 
-int Reader::handlePackets(uint8_t *pbuf, uint32_t len)
+int Reader::handlePackets(char *pbuf, uint32_t len)
 {
     int ret;
     uint32_t offset = 0;
@@ -227,77 +214,102 @@ int Reader::handlePackets(uint8_t *pbuf, uint32_t len)
     return static_cast<int>(len - offset);
 }
 
-int Reader::readData()
+void Reader::readCb(int size)
 {
-    uint8_t pbuf[BUF_SIZE];
-    int len, offset = 0;
-
-    do
+    if (size < 0)
     {
-        if ((len = read(pbuf + offset,
-            BUF_SIZE - static_cast<uint32_t>(offset))) < 0)
-        {
-            return -1;
-        }
-        len += offset;
+        emit result(-1);
+        return;
+    }
 
-        if ((offset = handlePackets(pbuf, static_cast<uint32_t>(len))) < 0)
-            return -1;
+    size += offset;
 
-        if (bytesRead >= bytesReadNotified + NOTIFY_LIMIT)
+    if ((offset = handlePackets(pbuf, static_cast<uint32_t>(size))) < 0)
+    {
+        emit result(-1);
+        return;
+    }
+
+    if (bytesRead >= bytesReadNotified + NOTIFY_LIMIT)
+    {
+        emit progress(bytesRead);
+        bytesReadNotified = bytesRead;
+    }
+
+    if (!bytesRead || (rlen && rlen != bytesRead))
+    {
+        if (read(pbuf + offset, bufSize - offset) < 0)
         {
-            emit progress(bytesRead);
-            bytesReadNotified = bytesRead;
+            emit result(-1);
+            return;
         }
     }
-    while (!bytesRead || (rlen && rlen != bytesRead));
-
-    return 0;
+    else
+        emit result(readOffset);
 }
 
-int Reader::serialPortCreate()
+int Reader::read(char *pbuf, uint32_t len)
 {
-    serialPort = new QSerialPort();
+    std::function<void(int)> cb = std::bind(&Reader::readCb, this,
+        std::placeholders::_1);
 
-    serialPort->setPortName(portName);
-    serialPort->setBaudRate(baudRate);
-
-    if (!serialPort->open(QIODevice::ReadWrite))
+    if (serialPort->asyncReadWithTimeout(pbuf, len, cb, READ_TIMEOUT) < 0)
     {
-        logErr(QString("Failed to open serial port: %1")
-            .arg(serialPort->errorString()));
+        logErr("Failed to read data");
         return -1;
     }
 
     return 0;
 }
 
-void Reader::serialPortDestroy()
+int Reader::serialPortCreate()
 {
-    serialPort->close();
-    delete serialPort;
+    serialPort = new SerialPort();
+
+    if (!serialPort->start(portName.toLatin1(), baudRate))
+        return -1;
+
+    return 0;
 }
 
-void Reader::run()
+void Reader::serialPortDestroy()
 {
-    int ret = -1;
+    if (!serialPort)
+        return;
+    serialPort->stop();
+    delete serialPort;
+    serialPort = nullptr;
+}
 
-    /* Required for logger */
-    qRegisterMetaType<QtMsgType>();
-
+void Reader::start()
+{
     if (serialPortCreate())
-        goto Exit;
+    {
+        emit result(-1);
+        goto Error;
+    }
+
+    if (read(pbuf, bufSize) < 0)
+    {
+        emit result(-1);
+        goto Error;
+    }
 
     if (readStart())
-        goto Exit;
+    {
+        emit result(-1);
+        goto Error;
+    }
 
-    if (readData())
-        goto Exit;
+    return;
 
-    ret = 0;
-Exit:
+Error:
     serialPortDestroy();
-    emit result(ret);
+}
+
+void Reader::stop()
+{
+    serialPortDestroy();
 }
 
 void Reader::logErr(const QString& msg)

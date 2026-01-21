@@ -1,4 +1,4 @@
-/*  Copyright (C) 2017 Bogdan Bogush <bogdan.s.bogush@gmail.com>
+/*  Copyright (C) 2020 NANDO authors
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 3.
  */
@@ -7,53 +7,65 @@
 #define WRITER_H
 
 #include "cmd.h"
-#include <QThread>
-#include <QSerialPort>
+#include "serial_port.h"
+#include "sync_buffer.h"
+#include <QObject>
 
-class Writer : public QThread
+class Writer : public QObject
 {
     Q_OBJECT
-    QSerialPort *serialPort;
+
+    static const uint32_t bufSize = 64;
+
+    SerialPort *serialPort = nullptr;
     QString portName;
     qint32 baudRate;
-    uint8_t *buf;
-    uint32_t addr;
-    uint32_t len;
-    uint32_t pageSize;
-    uint32_t bytesAcked;
-    uint32_t bytesWritten;
+    SyncBuffer *buf;
+    quint64 addr;
+    quint64 len;
+    quint64 pageSize;
+    quint64 bytesAcked;
+    quint64 bytesWritten;
     bool skipBB;
     bool incSpare;
+    bool enableHwEcc;
     uint8_t startCmd;
     uint8_t dataCmd;
     uint8_t endCmd;
+    char pbuf[bufSize];
+    int offset;
+    uint8_t cmd;
+    bool restartRead;
 
-    int write(uint8_t *data, uint32_t dataLen);
-    int read(uint8_t *data, uint32_t dataLen);
+    int write(char *data, uint32_t dataLen);
+    int read(char *data, uint32_t dataLen);
+    void readCb(int size);
     int handleWriteAck(RespHeader *header, uint32_t len);
     int handleBadBlock(RespHeader *header, uint32_t len, bool isSkipped);
     int handleError(RespHeader *header, uint32_t len);
-    int handleStatus(uint8_t *pbuf, uint32_t len);
-    int handlePacket(uint8_t *pbuf, uint32_t len);
-    int handlePackets(uint8_t *pbuf, uint32_t len);
-    int readData();
+    int handleStatus(char *pbuf, uint32_t len);
+    int handlePacket(char *pbuf, uint32_t len);
+    int handlePackets(char *pbuf, uint32_t len);
     int writeStart();
     int writeData();
     int writeEnd();
     int serialPortCreate();
     void serialPortDestroy();
-    void run() override;
     void logErr(const QString& msg);
     void logInfo(const QString& msg);
 
 public:
-    void init(const QString &portName, qint32 baudRate, uint8_t *buf,
-        uint32_t addr, uint32_t len, uint32_t pageSize,
-        bool skipBB, bool incSpare, uint8_t startCmd, uint8_t dataCmd,
-        uint8_t endCmd);
+    explicit Writer();
+    ~Writer();
+    void init(const QString &portName, qint32 baudRate, SyncBuffer *buf,
+        quint64 addr, quint64 len, uint32_t pageSize,
+        bool skipBB, bool incSpare, bool enableHwEcc, uint8_t startCmd,
+        uint8_t dataCmd, uint8_t endCmd);
+    void start();
+    void stop();
 signals:
     void result(int ret);
-    void progress(unsigned int progress);
+    void progress(quint64 progress);
     void log(QtMsgType msgType, QString msg);
 };
 

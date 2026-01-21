@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>ChipDbDialog</class>
- <widget class="QDialog" name="ChipDbDialog">
+ <class>ParallelChipDbDialog</class>
+ <widget class="QDialog" name="ParallelChipDbDialog">
   <property name="windowModality">
    <enum>Qt::ApplicationModal</enum>
   </property>
@@ -21,12 +21,12 @@
   </property>
   <property name="maximumSize">
    <size>
-    <width>1470</width>
+    <width>16777215</width>
     <height>16777215</height>
    </size>
   </property>
   <property name="windowTitle">
-   <string>Chip database</string>
+   <string>Parallel chip database</string>
   </property>
   <layout class="QGridLayout" name="gridLayout_2">
    <item row="0" column="0">
@@ -85,17 +85,17 @@
        <property name="cornerButtonEnabled">
         <bool>true</bool>
        </property>
-       <attribute name="horizontalHeaderDefaultSectionSize">
-        <number>70</number>
-       </attribute>
        <attribute name="horizontalHeaderMinimumSectionSize">
         <number>30</number>
        </attribute>
-       <attribute name="verticalHeaderDefaultSectionSize">
-        <number>30</number>
+       <attribute name="horizontalHeaderDefaultSectionSize">
+        <number>70</number>
        </attribute>
        <attribute name="verticalHeaderMinimumSectionSize">
         <number>20</number>
+       </attribute>
+       <attribute name="verticalHeaderDefaultSectionSize">
+        <number>30</number>
        </attribute>
       </widget>
      </item>
@@ -175,7 +175,7 @@
   <connection>
    <sender>okCancelButtonBox</sender>
    <signal>accepted()</signal>
-   <receiver>ChipDbDialog</receiver>
+   <receiver>ParallelChipDbDialog</receiver>
    <slot>accept()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -191,7 +191,7 @@
   <connection>
    <sender>okCancelButtonBox</sender>
    <signal>rejected()</signal>
-   <receiver>ChipDbDialog</receiver>
+   <receiver>ParallelChipDbDialog</receiver>
    <slot>reject()</slot>
    <hints>
     <hint type="sourcelabel">

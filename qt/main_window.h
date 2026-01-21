@@ -1,4 +1,4 @@
-/*  Copyright (C) 2017 Bogdan Bogush <bogdan.s.bogush@gmail.com>
+/*  Copyright (C) 2020 NANDO authors
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 3.
  */
@@ -7,9 +7,11 @@
 #define MAIN_WINDOW_H
 
 #include "programmer.h"
-#include "buffer_table_model.h"
+#include "parallel_chip_db.h"
+#include "spi_chip_db.h"
 #include <QMainWindow>
 #include <QVector>
+#include <QElapsedTimer>
 
 namespace Ui {
 class MainWindow;
@@ -26,10 +28,16 @@ public:
 
 private:
     Ui::MainWindow *ui;
-    QVector<uint8_t> buffer;
-    BufferTableModel bufferTableModel;
+    SyncBuffer buffer;
     ChipId chipId;
-    ChipDb chipDb;
+    ParallelChipDb parallelChipDb;
+    SpiChipDb spiChipDb;
+    ChipDb *currentChipDb;
+    QElapsedTimer timer;
+    bool isAlertEnabled;
+    QFile workFile;
+    quint64 areaSize;
+    uint32_t pageSize;
 
     void initBufTable();
     void resetBufTable();
@@ -37,36 +45,45 @@ private:
     void setUiStateSelected(bool isSelected);
     void updateChipList();
     void setProgress(unsigned int progress);
-
+    void updateProgSettings();
+    void detectChip(ChipDb *chipDb);
+    void detectChipReadChipIdDelayed();
+    void detectChipDelayed();
+    void setChipNameDelayed();
 private slots:
-    void slotProgConnectCompleted(int status);
-    void slotProgReadDeviceIdCompleted(int status);
-    void slotProgReadCompleted(int status);
-    void slotProgReadProgress(unsigned int progress);
+    void slotProgConnectCompleted(quint64 status);
+    void slotProgReadDeviceIdCompleted(quint64 status);
+    void slotProgReadCompleted(quint64 readBytes);
+    void slotProgReadProgress(quint64 progress);
+    void slotProgVerifyCompleted(quint64 readBytes);
+    void slotProgVerifyProgress(quint64 progress);
     void slotProgWriteCompleted(int status);
-    void slotProgWriteProgress(unsigned int progress);
-    void slotProgEraseCompleted(int status);
-    void slotProgEraseProgress(unsigned int progress);
-    void slotProgReadBadBlocksCompleted(int status);
-    void slotProgSelectCompleted(int status);
-    void slotProgDetectChipConfCompleted(int status);
-    void slotProgDetectChipReadChipIdCompleted(int status);
+    void slotProgWriteProgress(quint64 progress);
+    void slotProgEraseCompleted(quint64 status);
+    void slotProgEraseProgress(quint64 progress);
+    void slotProgReadBadBlocksCompleted(quint64 status);
+    void slotProgReadBadBlocksProgress(quint64 progress);
+    void slotProgSelectCompleted(quint64 status);
+    void slotProgDetectChipConfCompleted(quint64 status);
+    void slotProgDetectChipReadChipIdCompleted(quint64 status);
     void slotProgFirmwareUpdateCompleted(int status);
-    void slotProgFirmwareUpdateProgress(unsigned int progress);
+    void slotProgFirmwareUpdateProgress(quint64 progress);
+    void slotSelectFilePath();
+    void slotFilePathEditingFinished();
 
 public slots:
-    void slotFileOpen();
-    void slotFileSave();
     void slotProgConnect();
     void slotProgReadDeviceId();
     void slotProgErase();
     void slotProgRead();
+    void slotProgVerify();
     void slotProgWrite();
     void slotProgReadBadBlocks();
     void slotSelectChip(int selectedChipNum);
     void slotDetectChip();
     void slotSettingsProgrammer();
-    void slotSettingsChipDb();
+    void slotSettingsParallelChipDb();
+    void slotSettingsSpiChipDb();
     void slotAboutDialog();
     void slotFirmwareUpdateDialog();
 };

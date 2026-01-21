@@ -1,22 +1,23 @@
-/*  Copyright (C) 2017 Bogdan Bogush <bogdan.s.bogush@gmail.com>
+/*  Copyright (C) 2020 NANDO authors
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 3.
  */
 
-#ifndef CHIP_DB_TABLE_MODEL_H
-#define CHIP_DB_TABLE_MODEL_H
+#ifndef PARALLEL_CHIP_DB_TABLE_MODEL_H
+#define PARALLEL_CHIP_DB_TABLE_MODEL_H
 
-#include "chip_db.h"
+#include "parallel_chip_db.h"
 #include <QAbstractTableModel>
 
-class ChipDbTableModel : public QAbstractTableModel
+class ParallelChipDbTableModel : public QAbstractTableModel
 {
     Q_OBJECT
 
-    ChipDb *chipDb;
+    ParallelChipDb *chipDb;
 
 public:
-    explicit ChipDbTableModel(ChipDb *chipDb, QObject *parent = nullptr);
+    explicit ParallelChipDbTableModel(ParallelChipDb *chipDb,
+        QObject *parent = nullptr);
     int rowCount(const QModelIndex & /*parent*/) const override;
     int columnCount(const QModelIndex & /*parent*/) const override;
     QVariant data(const QModelIndex &index, int role) const override;
@@ -31,4 +32,4 @@ public:
     void reset();
 };
 
-#endif // CHIP_DB_TABLE_MODEL_H
+#endif // PARALLEL_CHIP_DB_TABLE_MODEL_H

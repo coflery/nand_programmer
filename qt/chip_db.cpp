@@ -1,30 +1,142 @@
-/*  Copyright (C) 2017 Bogdan Bogush <bogdan.s.bogush@gmail.com>
+/*  Copyright (C) 2020 NANDO authors
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 3.
  */
 
 #include "chip_db.h"
-#include <cstring>
-#include <QDebug>
+#include <QFileInfo>
 #include <QStandardPaths>
-#include <QDir>
 #include <QMessageBox>
+#include <QDir>
+#include <QTextStream>
 
-#define CHIP_DB_FILE_NAME "nando_chip_db.csv"
-
-#define CHIP_PARAM_NOT_DEFINED_SYMBOL '-'
-#define CHIP_PARAM_NOT_DEFINED_VALUE 0xFFFFFFFF
-
-QString ChipDb::findFile()
+ChipDb::ChipDb()
 {
-    QString fileName = CHIP_DB_FILE_NAME;
+}
 
+ChipDb::~ChipDb()
+{
+    for (int i = 0; i < chipInfoVector.size(); i++)
+        delete chipInfoVector[i];
+}
+
+int ChipDb::getParamFromString(const QString &value, quint64 &param)
+{
+    bool ok;
+
+    param = value.toULongLong(&ok);
+    if (!ok)
+        return -1;
+
+    return 0;
+}
+
+int ChipDb::getParamFromString(const QString &value, uint8_t &param)
+{
+    quint64 temp;
+
+    if (getParamFromString(value, temp))
+        return -1;
+
+    if (temp > UINT8_MAX)
+        return -1;
+
+    param = temp;
+
+    return 0;
+}
+
+int ChipDb::getParamFromHexString(const QString &value, quint64 &param)
+{
+    bool ok;
+
+    param = value.toULongLong(&ok, 16);
+    if (!ok)
+        return -1;
+
+    return 0;
+}
+
+int ChipDb::getStringFromParam(const quint64 &param, QString &value)
+{
+    value = QString("%1").arg(param);
+
+    return 0;
+}
+
+int ChipDb::getHexStringFromParam(const quint64 &param, QString &value)
+{
+    value = QString("0x%1").arg(param, 0, 16, QLatin1Char('0'));
+
+    return 0;
+}
+
+int ChipDb::getOptParamFromString(const QString &value, quint64 &param)
+{
+    if (value.trimmed() == paramNotDefSymbol)
+    {
+        param = paramNotDefValue;
+        return 0;
+    }
+
+    return getParamFromString(value, param);
+}
+
+int ChipDb::getOptParamFromHexString(const QString &value,
+    quint64 &param)
+{
+    if (value.trimmed() == paramNotDefSymbol)
+    {
+        param = paramNotDefValue;
+        return 0;
+    }
+
+    return getParamFromHexString(value, param);
+}
+
+int ChipDb::getStringFromOptParam(const quint64 &param, QString &value)
+{
+    if (param == paramNotDefValue)
+    {
+        value = paramNotDefSymbol;
+        return 0;
+    }
+
+    return getStringFromParam(param, value);
+}
+
+int ChipDb::getHexStringFromOptParam(const quint64 &param,
+    QString &value)
+{
+    if (param == paramNotDefValue)
+    {
+        value = paramNotDefSymbol;
+        return 0;
+    }
+
+    return getHexStringFromParam(param, value);
+}
+
+bool ChipDb::isParamValid(quint64 param, quint64 min, quint64 max)
+{
+    return param >= min && param <= max;
+}
+
+bool ChipDb::isOptParamValid(quint64 param, quint64 min, quint64 max)
+{
+    return (param == paramNotDefValue) ||
+        (param >= min && param <= max);
+}
+
+QString ChipDb::findFile(QString fileName)
+{
     if (!QFileInfo(fileName).exists() &&
         (fileName = QStandardPaths::locate(QStandardPaths::ConfigLocation,
-        CHIP_DB_FILE_NAME)).isNull())
+        fileName)).isNull())
     {
-        QMessageBox::critical(nullptr, tr("Error"), tr("Chip DB file %1 was not"
-            " found in %2;%3").arg(CHIP_DB_FILE_NAME).arg(QDir::currentPath()).
+        QMessageBox::critical(nullptr, QObject::tr("Error"),
+            QObject::tr("Chip DB file %1 was not"
+            " found in %2;%3").arg(fileName).arg(QDir::currentPath()).
             arg(QStandardPaths::standardLocations(QStandardPaths::
             ConfigLocation).join(';')));
         return QString();
@@ -33,149 +145,10 @@ QString ChipDb::findFile()
     return fileName;
 }
 
-int ChipDb::getParamFromString(const QString &value, uint32_t &param)
-{
-    bool ok;
-
-    param = value.toUInt(&ok);
-    if (!ok)
-        return -1;
-
-    return 0;
-}
-
-int ChipDb::getParamFromHexString(const QString &value, uint32_t &param)
-{
-    bool ok;
-
-    param = value.toUInt(&ok, 16);
-    if (!ok)
-        return -1;
-
-    return 0;
-}
-
-int ChipDb::getStringFromParam(const uint32_t &param, QString &value)
-{
-    value = QString("%1").arg(param);
-
-    return 0;
-}
-
-int ChipDb::getHexStringFromParam(const uint32_t &param, QString &value)
-{
-    value = QString("0x%1").arg(param, 0, 16, QLatin1Char('0'));
-
-    return 0;
-}
-
-int ChipDb::getOptParamFromString(const QString &value, uint32_t &param)
-{
-    if (value.trimmed() == CHIP_PARAM_NOT_DEFINED_SYMBOL)
-    {
-        param = CHIP_PARAM_NOT_DEFINED_VALUE;
-        return 0;
-    }
-
-    return getParamFromString(value, param);
-}
-
-int ChipDb::getOptParamFromHexString(const QString &value, uint32_t &param)
-{
-    if (value.trimmed() == CHIP_PARAM_NOT_DEFINED_SYMBOL)
-    {
-        param = CHIP_PARAM_NOT_DEFINED_VALUE;
-        return 0;
-    }
-
-    return getParamFromHexString(value, param);
-}
-
-int ChipDb::getStringFromOptParam(const uint32_t &param, QString &value)
-{
-    if (param == CHIP_PARAM_NOT_DEFINED_VALUE)
-    {
-        value = CHIP_PARAM_NOT_DEFINED_SYMBOL;
-        return 0;
-    }
-
-    return getStringFromParam(param, value);
-}
-
-int ChipDb::getHexStringFromOptParam(const uint32_t &param, QString &value)
-{
-    if (param == CHIP_PARAM_NOT_DEFINED_VALUE)
-    {
-        value = CHIP_PARAM_NOT_DEFINED_SYMBOL;
-        return 0;
-    }
-
-    return getHexStringFromParam(param, value);
-}
-
-bool ChipDb::isParamValid(uint32_t param, uint32_t min, uint32_t max)
-{
-    return param >= min && param <= max;
-}
-
-bool ChipDb::isOptParamValid(uint32_t param, uint32_t min, uint32_t max)
-{
-    return (param == CHIP_PARAM_NOT_DEFINED_VALUE) ||
-        (param >= min && param <= max);
-}
-
-int ChipDb::stringToChipInfo(const QString &s, ChipInfo &ci)
-{
-    int paramNum;
-    QStringList paramsList;
-
-    paramsList = s.split(',');
-    paramNum = paramsList.size();
-    if (paramNum != CHIP_PARAM_NUM)
-    {
-        QMessageBox::critical(nullptr, tr("Error"),
-            tr("Failed to read chip DB entry. Expected %2 parameters, "
-            "but read %3").arg(CHIP_PARAM_NUM).arg(paramNum));
-        return -1;
-    }
-
-    ci.name = paramsList[CHIP_PARAM_NAME];
-    for (int i = CHIP_PARAM_NAME + 1; i < CHIP_PARAM_NUM; i++)
-    {
-        if (getOptParamFromString(paramsList[i], ci.params[i]))
-        {
-            QMessageBox::critical(nullptr, tr("Error"), tr("Failed to parse"
-                " parameter %1").arg(paramsList[i]));
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
-int ChipDb::chipInfoToString(const ChipInfo &ci, QString &s)
-{
-    QString csvValue;
-    QStringList paramsList;
-
-    paramsList.append(ci.name);
-    for (int i = CHIP_PARAM_NAME + 1; i < CHIP_PARAM_NUM; i++)
-    {
-        if (getStringFromOptParam(ci.params[i], csvValue))
-            return -1;
-        paramsList.append(csvValue);
-    }
-
-    s = paramsList.join(", ");
-
-    return 0;
-}
-
 void ChipDb::readFromCvs(void)
 {
-    ChipInfo chipInfo;
     QFile dbFile;
-    QString fileName = findFile();
+    QString fileName = findFile(getDbFileName());
 
     if (fileName.isNull())
         return;
@@ -183,8 +156,9 @@ void ChipDb::readFromCvs(void)
     dbFile.setFileName(fileName);
     if (!dbFile.open(QIODevice::ReadOnly | QIODevice::Text))
     {
-        QMessageBox::critical(nullptr, tr("Error"), tr("Failed to open chip DB "
-            "file: %1, error: %2").arg(fileName).arg(dbFile.errorString()));
+        QMessageBox::critical(nullptr, QObject::tr("Error"),
+            QObject::tr("Failed to open chip DB file: %1, error: %2")
+            .arg(fileName).arg(dbFile.errorString()));
         return;
     }
 
@@ -196,9 +170,12 @@ void ChipDb::readFromCvs(void)
             continue;
         if (*line.data() == '#')
             continue;
-        if (stringToChipInfo(line, chipInfo))
+
+        ChipInfo *ci = stringToChipInfo(line);
+        if (!ci)
             break;
-        chipInfoVector.append(chipInfo);
+
+        chipInfoVector.append(ci);
     }
     dbFile.close();
 }
@@ -207,9 +184,9 @@ int ChipDb::readCommentsFromCsv(QFile &dbFile, QString &comments)
 {
     if (!dbFile.open(QIODevice::ReadOnly | QIODevice::Text))
     {
-        QMessageBox::critical(nullptr, tr("Error"), tr("Failed to open chip DB "
-            "file: %1, error: %2").arg(dbFile.fileName()).
-            arg(dbFile.errorString()));
+        QMessageBox::critical(nullptr, QObject::tr("Error"),
+            QObject::tr("Failed to open chip DB file: %1, error: %2")
+            .arg(dbFile.fileName()).arg(dbFile.errorString()));
         return -1;
     }
 
@@ -234,7 +211,7 @@ void ChipDb::writeToCvs(void)
 {
     QString line;
     QFile dbFile;
-    QString fileName = findFile();
+    QString fileName = findFile(getDbFileName());
 
     if (fileName.isNull())
         return;
@@ -247,24 +224,22 @@ void ChipDb::writeToCvs(void)
     if (!dbFile.open(QIODevice::WriteOnly | QIODevice::Truncate |
         QIODevice::Text))
     {
-        QMessageBox::critical(nullptr, tr("Error"), tr("Failed to open chip DB "
-            "file: %1, error: %2").arg(fileName).arg(dbFile.errorString()));
+        QMessageBox::critical(nullptr, QObject::tr("Error"),
+            QObject::tr("Failed to open chip DB file: %1, error: %2")
+            .arg(fileName).arg(dbFile.errorString()));
         return;
     }
 
     QTextStream out(&dbFile);
     out << line;
+
     for (int i = 0; i < chipInfoVector.size(); i++)
     {
         chipInfoToString(chipInfoVector[i], line);
         out << line << '\n';
     }
-    dbFile.close();
-}
 
-ChipDb::ChipDb(QObject *parent) : QObject(parent)
-{
-    readFromCvs();
+    dbFile.close();
 }
 
 QStringList ChipDb::getNames()
@@ -272,7 +247,7 @@ QStringList ChipDb::getNames()
     QStringList namesList;
 
     for (int i = 0; i < chipInfoVector.size(); i++)
-        namesList.append(chipInfoVector[i].name);
+        namesList.append(chipInfoVector[i]->getName());
 
     return namesList;
 }
@@ -282,57 +257,32 @@ ChipInfo *ChipDb::chipInfoGetById(int id)
     if (id >= chipInfoVector.size() || id < 0)
         return nullptr;
 
-    return &chipInfoVector[id];
+    return chipInfoVector[id];
 }
 
-int ChipDb::getIdByChipId(uint32_t id1, uint32_t id2, uint32_t id3,
-    uint32_t id4, uint32_t id5)
+ChipInfo *ChipDb::chipInfoGetByName(QString name)
 {
     for(int i = 0; i < chipInfoVector.size(); i++)
     {
-        // Mandatory IDs
-        if (id1 != chipInfoVector[i].params[CHIP_PARAM_ID1] ||
-            id2 != chipInfoVector[i].params[CHIP_PARAM_ID2])
-        {
-            continue;
-        }
-
-        // Optinal IDs
-        if (chipInfoVector[i].params[CHIP_PARAM_ID3] ==
-            CHIP_PARAM_NOT_DEFINED_VALUE)
-        {
-            return i;
-        }
-        if (id3 != chipInfoVector[i].params[CHIP_PARAM_ID3])
-            continue;
-
-        if (chipInfoVector[i].params[CHIP_PARAM_ID4] ==
-            CHIP_PARAM_NOT_DEFINED_VALUE)
-        {
-            return i;
-        }
-        if (id4 != chipInfoVector[i].params[CHIP_PARAM_ID4])
-            continue;
-
-        if (chipInfoVector[i].params[CHIP_PARAM_ID5] ==
-            CHIP_PARAM_NOT_DEFINED_VALUE)
-        {
-            return i;
-        }
-        if (id5 != chipInfoVector[i].params[CHIP_PARAM_ID5])
-            continue;
-
-        return i;
+        if (!chipInfoVector[i]->getName().compare(name))
+            return chipInfoVector[i];
     }
 
-    return -1;
+    return nullptr;
 }
 
 uint32_t ChipDb::pageSizeGetById(int id)
 {
     ChipInfo *info = chipInfoGetById(id);
 
-    return info ? info->params[CHIP_PARAM_PAGE_SIZE] : 0;
+    return info ? info->getPageSize() : 0;
+}
+
+uint32_t ChipDb::pageSizeGetByName(const QString &name)
+{
+    ChipInfo *info = chipInfoGetByName(name);
+
+    return info ? info->getPageSize() : 0;
 }
 
 uint32_t ChipDb::extendedPageSizeGetById(int id)
@@ -342,39 +292,75 @@ uint32_t ChipDb::extendedPageSizeGetById(int id)
     if (!info)
         return 0;
 
-    return info->params[CHIP_PARAM_PAGE_SIZE] +
-        info->params[CHIP_PARAM_SPARE_SIZE];
+    return info->getPageSize() + info->getSpareSize();
 }
 
-uint32_t ChipDb::totalSizeGetById(int id)
+uint32_t ChipDb::extendedPageSizeGetByName(const QString &name)
+{
+    ChipInfo *info = chipInfoGetByName(name);
+
+    if (!info)
+        return 0;
+
+    return info->getPageSize() + info->getSpareSize();
+}
+
+quint64 ChipDb::totalSizeGetById(int id)
 {
     ChipInfo *info = chipInfoGetById(id);
 
-    return info ? info->params[CHIP_PARAM_TOTAL_SIZE] : 0;
+    return info ? info->getTotalSize() : 0;
 }
 
-uint32_t ChipDb::extendedTotalSizeGetById(int id)
+quint64 ChipDb::totalSizeGetByName(const QString &name)
 {
-    uint32_t totalSize, totalSpare;
+    ChipInfo *info = chipInfoGetByName(name);
+
+    return info ? info->getTotalSize() : 0;
+}
+
+quint64 ChipDb::extendedTotalSizeGetById(int id)
+{
+    quint64 totalSize, totalSpare;
     ChipInfo *info = chipInfoGetById(id);
 
     if (!info)
         return 0;
 
-    totalSize = info->params[CHIP_PARAM_TOTAL_SIZE];
-    totalSpare = info->params[CHIP_PARAM_SPARE_SIZE] * (totalSize /
-        info->params[CHIP_PARAM_PAGE_SIZE]);
+    totalSize = info->getTotalSize();
+    totalSpare = info->getSpareSize() * (totalSize / info->getPageSize());
 
     return totalSize + totalSpare;
 }
 
-void ChipDb::addChip(ChipInfo &chipInfo)
+quint64 ChipDb::extendedTotalSizeGetByName(const QString &name)
+{
+    quint64 totalSize, totalSpare;
+    ChipInfo *info = chipInfoGetByName(name);
+
+    if (!info)
+        return 0;
+
+    totalSize = info->getTotalSize();
+    totalSpare = info->getSpareSize() * (totalSize / info->getPageSize());
+
+    return totalSize + totalSpare;
+}
+
+quint64 ChipDb::blockCountGetByName(const QString &name)
+{
+    ChipInfo *info = chipInfoGetByName(name);
+    return info->getTotalSize() / info->getBlockSize();
+}
+
+void ChipDb::addChip(ChipInfo *chipInfo)
 {
     chipInfoVector.append(chipInfo);
 }
 
 void ChipDb::delChip(int index)
 {
+    delete chipInfoVector[index];
     chipInfoVector.remove(index);
 }
 
@@ -390,6 +376,8 @@ void ChipDb::commit()
 
 void ChipDb::reset()
 {
+    for (int i = 0; i < chipInfoVector.size(); i++)
+        delete chipInfoVector[i];
     chipInfoVector.clear();
     readFromCvs();
 }
@@ -397,14 +385,14 @@ void ChipDb::reset()
 ChipInfo *ChipDb::getChipInfo(int chipIndex)
 {
     return chipIndex >= 0 && chipIndex < chipInfoVector.size() ?
-        &chipInfoVector[chipIndex] : nullptr;
+        chipInfoVector[chipIndex] : nullptr;
 }
 
 QString ChipDb::getChipName(int chipIndex)
 {
     ChipInfo *ci = getChipInfo(chipIndex);
 
-    return ci ? ci->name : QString();
+    return ci ? ci->getName() : QString();
 }
 
 int ChipDb::setChipName(int chipIndex, const QString &name)
@@ -414,29 +402,102 @@ int ChipDb::setChipName(int chipIndex, const QString &name)
     if (!ci)
         return -1;
 
-    ci->name = name;
+    ci->setName(name);
 
     return 0;
 }
 
-uint32_t ChipDb::getChipParam(int chipIndex, int paramIndex)
+uint32_t ChipDb::getPageSize(int chipIndex)
 {
     ChipInfo *ci = getChipInfo(chipIndex);
 
-    if (!ci || paramIndex < 0 || paramIndex > CHIP_PARAM_NUM)
-        return 0;
-
-    return ci->params[paramIndex];
+    return ci ? ci->getPageSize() : 0;
 }
 
-int ChipDb::setChipParam(int chipIndex, int paramIndex, uint32_t paramValue)
+int ChipDb::setPageSize(int chipIndex, uint32_t pageSize)
 {
     ChipInfo *ci = getChipInfo(chipIndex);
 
-    if (!ci || paramIndex < 0 || paramIndex > CHIP_PARAM_NUM)
+    if (!ci)
         return -1;
 
-    ci->params[paramIndex] = paramValue;
+    ci->setPageSize(pageSize);
+
+    return 0;
+}
+
+uint32_t ChipDb::getBlockSize(int chipIndex)
+{
+    ChipInfo *ci = getChipInfo(chipIndex);
+
+    return ci ? ci->getBlockSize() : 0;
+}
+
+int ChipDb::setBlockSize(int chipIndex, uint32_t blockSize)
+{
+    ChipInfo *ci = getChipInfo(chipIndex);
+
+    if (!ci)
+        return -1;
+
+    ci->setBlockSize(blockSize);
+
+    return 0;
+}
+
+quint64 ChipDb::getTotalSize(int chipIndex)
+{
+    ChipInfo *ci = getChipInfo(chipIndex);
+
+    return ci ? ci->getTotalSize() : 0;
+}
+
+int ChipDb::setTotalSize(int chipIndex, quint64 totalSize)
+{
+    ChipInfo *ci = getChipInfo(chipIndex);
+
+    if (!ci)
+        return -1;
+
+    ci->setTotalSize(totalSize);
+
+    return 0;
+}
+
+uint32_t ChipDb::getSpareSize(int chipIndex)
+{
+    ChipInfo *ci = getChipInfo(chipIndex);
+
+    return ci ? ci->getSpareSize() : 0;
+}
+
+int ChipDb::setSpareSize(int chipIndex, uint32_t spareSize)
+{
+    ChipInfo *ci = getChipInfo(chipIndex);
+
+    if (!ci)
+        return -1;
+
+    ci->setSpareSize(spareSize);
+
+    return 0;
+}
+
+uint8_t ChipDb::getBBMarkOffset(int chipIndex)
+{
+    ChipInfo *ci = getChipInfo(chipIndex);
+
+    return ci ? ci->getBBMarkOffset() : 0;
+}
+
+int ChipDb::setBBMarkOffset(int chipIndex, uint8_t bbMarkOffset)
+{
+    ChipInfo *ci = getChipInfo(chipIndex);
+
+    if (!ci)
+        return -1;
+
+    ci->setBBMarkOffset(bbMarkOffset);
 
     return 0;
 }
